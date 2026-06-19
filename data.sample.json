@@ -1,0 +1,9 @@
+{
+  "_note": "SAMPLE only. Rename to data.json (or run fetch_data.py) to use. Prices are placeholders, not live.",
+  "NSEI":    { "symbol": "^NSEI",    "price": 25000, "date": "2026-06-19", "currency": "INR" },
+  "NSEBANK": { "symbol": "^NSEBANK", "price": 56000, "date": "2026-06-19", "currency": "INR" },
+  "CNX500":  { "symbol": "^CRSLDX",  "price": 23000, "date": "2026-06-19", "currency": "INR" },
+  "DJIA":    { "symbol": "^DJI",     "price": 43000, "date": "2026-06-19", "currency": "USD" },
+  "NDX":     { "symbol": "^NDX",     "price": 22000, "date": "2026-06-19", "currency": "USD" },
+  "SPX":     { "symbol": "^GSPC",    "price": 6000,  "date": "2026-06-19", "currency": "USD" }
+}

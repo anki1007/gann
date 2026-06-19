@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Gann &amp; Astro Terminal</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
+<script>
+  /* Force the classic JSX runtime (React.createElement) so no ESM import is emitted */
+  Babel.registerPreset('react-classic', {
+    presets: [[Babel.availablePresets['react'], { runtime: 'classic' }]]
+  });
+</script>
+<style>
+  :root{
+    --bg:#070b11; --bg2:#0c121b; --panel:#0e1622; --panel2:#111c2b;
+    --border:#1c2a3a; --border2:#26384d;
+    --txt:#cdd9e5; --muted:#6b8199; --dim:#46586c;
+    --grn:#36d399; --grn2:#0e3d2f; --amb:#f5b942; --amb2:#3d2f0e;
+    --cyn:#48c6e8; --red:#f06a6a; --vio:#b98cff; --mag:#ff7ac6;
+    --gridline:#16222f;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:var(--bg); color:var(--txt);
+    font-family:'JetBrains Mono','SF Mono',ui-monospace,Menlo,Consolas,monospace;
+    font-size:13px; line-height:1.45; overflow:hidden;
+  }
+  #root{height:100vh;}
+  .app{display:flex;flex-direction:column;height:100vh;}
+  /* top bar */
+  .topbar{
+    display:flex;align-items:center;gap:14px;padding:8px 14px;
+    background:linear-gradient(180deg,#0c121b,#0a0f17);
+    border-bottom:1px solid var(--border);flex:0 0 auto;
+  }
+  .brand{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:.5px;white-space:nowrap;}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--grn);box-shadow:0 0 9px var(--grn);}
+  .brand small{color:var(--muted);font-weight:400;letter-spacing:0;}
+  .tb-spacer{flex:1;}
+  .ctrl{display:flex;flex-direction:column;gap:2px;}
+  .ctrl label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.7px;}
+  select,input{
+    background:var(--bg2);border:1px solid var(--border2);color:var(--txt);
+    font-family:inherit;font-size:13px;padding:5px 8px;border-radius:5px;outline:none;
+  }
+  select:focus,input:focus{border-color:var(--grn);}
+  input[type=date]{color-scheme:dark;}
+  .btn{
+    background:var(--panel2);border:1px solid var(--border2);color:var(--txt);
+    font-family:inherit;font-size:12px;padding:6px 11px;border-radius:5px;cursor:pointer;
+    white-space:nowrap;transition:.12s;
+  }
+  .btn:hover{border-color:var(--grn);color:var(--grn);}
+  .btn.sm{padding:3px 8px;font-size:11px;}
+  .pricebox{color:var(--grn);font-weight:700;}
+  .datasrc{font-size:10px;color:var(--dim);display:flex;align-items:center;gap:5px;}
+  .led{width:7px;height:7px;border-radius:50%;background:var(--amb);}
+  .led.live{background:var(--grn);box-shadow:0 0 7px var(--grn);}
+  /* body */
+  .main{display:flex;flex:1;min-height:0;}
+  .sidebar{
+    width:248px;flex:0 0 248px;background:var(--bg2);border-right:1px solid var(--border);
+    overflow-y:auto;transition:margin-left .18s ease;
+  }
+  .sidebar.hidden{margin-left:-248px;}
+  .sb-group{padding:6px 0;}
+  .sb-title{
+    padding:9px 14px 5px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;
+    color:var(--amb);display:flex;align-items:center;gap:7px;
+  }
+  .sb-title::before{content:"";flex:1 0 12px;height:1px;background:var(--border);order:2;}
+  .sb-title .chev{order:0;width:10px;font-size:9px;color:var(--amb);transition:.1s;}
+  .sb-title .grpcount{order:3;color:var(--dim);font-weight:400;letter-spacing:0;font-size:9px;}
+  .sb-title:hover{color:#ffd27a;}
+  .sb-title:hover .chev{color:#ffd27a;}
+  .sb-item{
+    padding:6px 14px 6px 22px;cursor:pointer;color:var(--muted);
+    border-left:2px solid transparent;display:flex;align-items:center;gap:8px;font-size:12.5px;
+  }
+  .sb-item:hover{background:var(--panel);color:var(--txt);}
+  .sb-item.active{background:var(--panel2);color:var(--grn);border-left-color:var(--grn);}
+  .sb-item .ic{width:16px;text-align:center;color:var(--dim);font-size:13px;}
+  .sb-item.active .ic{color:var(--grn);}
+  .content{flex:1;min-width:0;overflow-y:auto;padding:16px 20px 50px;}
+  .reopen{
+    position:absolute;left:0;top:120px;background:var(--panel2);border:1px solid var(--border2);
+    border-left:none;border-radius:0 6px 6px 0;padding:10px 6px;cursor:pointer;color:var(--grn);
+    writing-mode:vertical-rl;font-size:11px;letter-spacing:1px;z-index:5;
+  }
+  /* panels */
+  .pg-head{margin:0 0 4px;font-size:18px;font-weight:700;letter-spacing:.3px;}
+  .pg-head .sub{color:var(--grn);}
+  .pg-desc{color:var(--muted);margin:0 0 16px;max-width:880px;font-size:12px;}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:13px 15px;}
+  .card h4{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:600;}
+  .card .big{font-size:22px;font-weight:700;color:var(--txt);}
+  .card .big.grn{color:var(--grn);} .card .big.amb{color:var(--amb);} .card .big.cyn{color:var(--cyn);}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:14px;}
+  .panel h3{margin:0 0 10px;font-size:13px;color:var(--amb);letter-spacing:.5px;text-transform:uppercase;font-weight:600;}
+  .row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-bottom:6px;}
+  table{border-collapse:collapse;width:100%;font-size:12px;}
+  th,td{padding:5px 9px;text-align:right;border-bottom:1px solid var(--gridline);white-space:nowrap;}
+  th{color:var(--dim);font-weight:600;text-transform:uppercase;font-size:10px;letter-spacing:.6px;position:sticky;top:0;background:var(--panel);}
+  td.l,th.l{text-align:left;}
+  tr:hover td{background:var(--bg2);}
+  .tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.4px;}
+  .tag.res{background:var(--amb2);color:var(--amb);} .tag.sup{background:var(--grn2);color:var(--grn);}
+  .tag.card{background:#13314a;color:var(--cyn);} .tag.retro{background:#3a1320;color:var(--red);}
+  .pos{color:var(--grn);} .neg{color:var(--red);} .mut{color:var(--muted);} .cyn{color:var(--cyn);} .amb{color:var(--amb);} .vio{color:var(--vio);}
+  .glyph{font-size:15px;}
+  .scroll{max-height:560px;overflow:auto;}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;color:var(--muted);font-size:11px;margin-top:8px;}
+  .legend span{display:flex;align-items:center;gap:5px;}
+  .sw{width:11px;height:11px;border-radius:2px;display:inline-block;}
+  .note{color:var(--dim);font-size:11px;margin-top:8px;}
+  .kbd{background:var(--bg2);border:1px solid var(--border2);border-radius:3px;padding:0 5px;color:var(--cyn);}
+  /* sq9 spiral */
+  .spiral{border-collapse:collapse;margin:0 auto;}
+  .spiral td{width:40px;height:34px;text-align:center;border:1px solid var(--gridline);font-size:11px;padding:0;color:var(--muted);}
+  .spiral td.diag{background:#14233a;color:var(--cyn);}
+  .spiral td.card{background:#0e2b22;color:var(--grn);}
+  .spiral td.center{background:var(--amb);color:#000;font-weight:700;}
+  .moon{width:74px;height:74px;border-radius:50%;background:#1a2636;position:relative;overflow:hidden;border:1px solid var(--border2);}
+  .moon .lit{position:absolute;top:0;bottom:0;background:#e8eef5;}
+  svg text{font-family:inherit;}
+  .err{color:var(--red);}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:#1c2a3a;border-radius:5px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react-classic">
+/* ===================== ENGINE (verified in Node) ===================== */
+const DEG=Math.PI/180,R2D=180/Math.PI;
+const sin=d=>Math.sin(d*DEG),cos=d=>Math.cos(d*DEG);
+const atan2d=(y,x)=>Math.atan2(y,x)*R2D;
+const rev=x=>{x=x%360;return x<0?x+360:x;};
+const rev180=x=>{x=rev(x);return x>180?x-360:x;};
+function dayNumber(y,m,D,ut=0){
+  const d=367*y-Math.floor(7*(y+Math.floor((m+9)/12))/4)+Math.floor(275*m/9)+D-730530;
+  return d+ut/24;
+}
+function dayNumberFromDate(dt){
+  return dayNumber(dt.getUTCFullYear(),dt.getUTCMonth()+1,dt.getUTCDate(),
+    dt.getUTCHours()+dt.getUTCMinutes()/60+dt.getUTCSeconds()/3600);
+}
+const ELEMENTS={
+  Sun:d=>({N:0,i:0,w:282.9404+4.70935e-5*d,a:1.0,e:0.016709-1.151e-9*d,M:356.0470+0.9856002585*d}),
+  Moon:d=>({N:125.1228-0.0529538083*d,i:5.1454,w:318.0634+0.1643573223*d,a:60.2666,e:0.054900,M:115.3654+13.0649929509*d}),
+  Mercury:d=>({N:48.3313+3.24587e-5*d,i:7.0047+5.00e-8*d,w:29.1241+1.01444e-5*d,a:0.387098,e:0.205635+5.59e-10*d,M:168.6562+4.0923344368*d}),
+  Venus:d=>({N:76.6799+2.46590e-5*d,i:3.3946+2.75e-8*d,w:54.8910+1.38374e-5*d,a:0.723330,e:0.006773-1.302e-9*d,M:48.0052+1.6021302244*d}),
+  Mars:d=>({N:49.5574+2.11081e-5*d,i:1.8497-1.78e-8*d,w:286.5016+2.92961e-5*d,a:1.523688,e:0.093405+2.516e-9*d,M:18.6021+0.5240207766*d}),
+  Jupiter:d=>({N:100.4542+2.76854e-5*d,i:1.3030-1.557e-7*d,w:273.8777+1.64505e-5*d,a:5.20256,e:0.048498+4.469e-9*d,M:19.8950+0.0830853001*d}),
+  Saturn:d=>({N:113.6634+2.38980e-5*d,i:2.4886-1.081e-7*d,w:339.3939+2.97661e-5*d,a:9.55475,e:0.055546-9.499e-9*d,M:316.9670+0.0334442282*d}),
+  Uranus:d=>({N:74.0005+1.3978e-5*d,i:0.7733+1.9e-8*d,w:96.6612+3.0565e-5*d,a:19.18171-1.55e-8*d,e:0.047318+7.45e-9*d,M:142.5905+0.011725806*d}),
+  Neptune:d=>({N:131.7806+3.0173e-5*d,i:1.7700-2.55e-7*d,w:272.8461-6.027e-6*d,a:30.05826+3.313e-8*d,e:0.008606+2.15e-9*d,M:260.2471+0.005995147*d})
+};
+const PLANET_ORDER=['Sun','Moon','Mercury','Venus','Mars','Jupiter','Saturn','Uranus','Neptune'];
+const GLYPH={Sun:'☉',Moon:'☽',Mercury:'☿',Venus:'♀',Mars:'♂',Jupiter:'♃',Saturn:'♄',Uranus:'♅',Neptune:'♆'};
+const PCOLOR={Sun:'#f5b942',Moon:'#cdd9e5',Mercury:'#48c6e8',Venus:'#36d399',Mars:'#f06a6a',Jupiter:'#b98cff',Saturn:'#d8a24a',Uranus:'#5fd6c4',Neptune:'#7aa0ff'};
+const ZODIAC=['Aries','Taurus','Gemini','Cancer','Leo','Virgo','Libra','Scorpio','Sagittarius','Capricorn','Aquarius','Pisces'];
+const ZGLYPH=['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'];
+function heliocentric(el){
+  const e=el.e,M=rev(el.M);
+  let E=M+R2D*e*sin(M)*(1+e*cos(M));
+  for(let k=0;k<8;k++){const dE=(E-R2D*e*sin(E)-M)/(1-e*cos(E));E-=dE;if(Math.abs(dE)<1e-9)break;}
+  const xv=el.a*(cos(E)-e),yv=el.a*Math.sqrt(1-e*e)*sin(E);
+  const v=rev(atan2d(yv,xv)),r=Math.sqrt(xv*xv+yv*yv),vw=v+el.w;
+  const xh=r*(cos(el.N)*cos(vw)-sin(el.N)*sin(vw)*cos(el.i));
+  const yh=r*(sin(el.N)*cos(vw)+cos(el.N)*sin(vw)*cos(el.i));
+  const zh=r*(sin(vw)*sin(el.i));
+  return{xh,yh,zh,r,v,lonecl:rev(vw)};
+}
+const oblecl=d=>23.4393-3.563e-7*d;
+function positionAt(name,d){
+  const sunEl=ELEMENTS.Sun(d),sun=heliocentric(sunEl),ecl=oblecl(d);
+  if(name==='Sun'){
+    const lon=rev(atan2d(sun.yh,sun.xh)),lat=atan2d(0,Math.sqrt(sun.xh*sun.xh+sun.yh*sun.yh));
+    return finishGeo(name,sun.xh,sun.yh,0,ecl,null,sun.r,lon,lat);
+  } else if(name==='Moon'){
+    const m=heliocentric(ELEMENTS.Moon(d));
+    let lon=m.lonecl,lat=atan2d(m.zh,Math.sqrt(m.xh*m.xh+m.yh*m.yh));
+    const Ms=rev(sunEl.M),ws=sunEl.w,mel=ELEMENTS.Moon(d),Mm=rev(mel.M),Nm=mel.N,wm=mel.w;
+    const Ls=rev(Ms+ws),Lm=rev(Mm+wm+Nm),Dm=rev(Lm-Ls),F=rev(Lm-Nm);
+    lon+=-1.274*sin(Mm-2*Dm)+0.658*sin(2*Dm)-0.186*sin(Ms)-0.059*sin(2*Mm-2*Dm)
+      -0.057*sin(Mm-2*Dm+Ms)+0.053*sin(Mm+2*Dm)+0.046*sin(2*Dm-Ms)+0.041*sin(Mm-Ms)
+      -0.035*sin(Dm)-0.031*sin(Mm+Ms)-0.015*sin(2*F-2*Dm)+0.011*sin(Mm-4*Dm);
+    lat+=-0.173*sin(F-2*Dm)-0.055*sin(Mm-F-2*Dm)-0.046*sin(Mm+F-2*Dm)+0.033*sin(F+2*Dm)+0.017*sin(2*Mm+F);
+    lon=rev(lon);const rr=m.r;
+    const xg=rr*cos(lon)*cos(lat),yg=rr*sin(lon)*cos(lat),zg=rr*sin(lat);
+    return finishGeo(name,xg,yg,zg,ecl,null,rr,lon,lat);
+  } else {
+    const p=heliocentric(ELEMENTS[name](d));
+    const xg=p.xh+sun.xh,yg=p.yh+sun.yh,zg=p.zh;
+    const lon=rev(atan2d(yg,xg)),lat=atan2d(zg,Math.sqrt(xg*xg+yg*yg));
+    return finishGeo(name,xg,yg,zg,ecl,p.lonecl,p.r,lon,lat);
+  }
+}
+function finishGeo(name,xg,yg,zg,ecl,helioLon,dist,lonecl,latecl){
+  const xe=xg,ye=yg*cos(ecl)-zg*sin(ecl),ze=yg*sin(ecl)+zg*cos(ecl);
+  const RA=rev(atan2d(ye,xe)),Dec=atan2d(ze,Math.sqrt(xe*xe+ye*ye));
+  const si=Math.floor(rev(lonecl)/30);
+  return{name,glyph:GLYPH[name],lon:rev(lonecl),lat:latecl,
+    helioLon:helioLon==null?null:rev(helioLon),ra:RA,dec:Dec,dist,
+    sign:ZODIAC[si],signGlyph:ZGLYPH[si],signDeg:rev(lonecl)-si*30};
+}
+function ephemeris(dt,bodies=PLANET_ORDER){
+  const d=dayNumberFromDate(dt);
+  return bodies.map(b=>{const p=positionAt(b,d);const p2=positionAt(b,d+1);
+    p.speed=rev180(p2.lon-p.lon);p.retro=p.speed<0;return p;});
+}
+function moonPhase(dt){
+  const d=dayNumberFromDate(dt),s=positionAt('Sun',d).lon,m=positionAt('Moon',d).lon;
+  const elong=rev(m-s),illum=(1-cos(elong))/2;
+  const names=['New Moon','Waxing Crescent','First Quarter','Waxing Gibbous','Full Moon','Waning Gibbous','Last Quarter','Waning Crescent'];
+  return{elong,illum,phaseName:names[Math.floor((rev(elong)+22.5)/45)%8],age:elong/360*29.530588};
+}
+function nextMoonEvents(dt,count=8){
+  const targets=[0,90,180,270],labels={0:'New Moon',90:'First Quarter',180:'Full Moon',270:'Last Quarter'};
+  const out=[];let t=new Date(dt.getTime());const stepH=2;let prev=moonPhase(t).elong;
+  const maxIter=Math.ceil(24*75/stepH);
+  for(let i=0;i<maxIter&&out.length<count;i++){
+    const t2=new Date(t.getTime()+stepH*3600*1000),cur=moonPhase(t2).elong;
+    for(const tg of targets){let a=prev,b=cur;
+      if(tg===0){if(a>180)a-=360;if(b>180)b-=360;}
+      if(a<tg&&b>=tg){const frac=(tg-a)/(b-a);out.push({label:labels[tg],date:new Date(t.getTime()+frac*stepH*3600*1000)});}}
+    t=t2;prev=cur;}
+  return out.sort((x,y)=>x.date-y.date).slice(0,count);
+}
+const ASPECTS=[
+  {name:'Conjunction',glyph:'☌',angle:0,orb:6,col:'#f5b942'},
+  {name:'Sextile',glyph:'⚹',angle:60,orb:4,col:'#36d399'},
+  {name:'Square',glyph:'□',angle:90,orb:5,col:'#f06a6a'},
+  {name:'Trine',glyph:'△',angle:120,orb:5,col:'#48c6e8'},
+  {name:'Opposition',glyph:'☍',angle:180,orb:6,col:'#b98cff'},
+  {name:'Semisextile',glyph:'⚺',angle:30,orb:2,col:'#6b8199'},
+  {name:'Semisquare',glyph:'∠',angle:45,orb:2,col:'#6b8199'},
+  {name:'Sesquiquadrate',glyph:'⚼',angle:135,orb:2,col:'#6b8199'},
+  {name:'Quincunx',glyph:'⚻',angle:150,orb:3,col:'#6b8199'}];
+function aspects(dt,bodies=PLANET_ORDER){
+  const eph=ephemeris(dt,bodies),out=[];
+  for(let i=0;i<eph.length;i++)for(let j=i+1;j<eph.length;j++){
+    const sep=Math.abs(rev180(eph[i].lon-eph[j].lon));
+    for(const asp of ASPECTS){const orb=Math.abs(sep-asp.angle);
+      if(orb<=asp.orb){out.push({a:eph[i].name,b:eph[j].name,aGlyph:eph[i].glyph,bGlyph:eph[j].glyph,
+        aspect:asp.name,aspGlyph:asp.glyph,col:asp.col,exact:asp.angle,orb,sep});break;}}}
+  return out.sort((x,y)=>x.orb-y.orb);
+}
+function sq9Value(P,angleDeg,turns=0){const root=Math.sqrt(P)+2*turns+angleDeg/180;return root*root;}
+function sq9Levels(P,step=45,turns=2){
+  const root0=Math.sqrt(P),out=[],total=turns*360;
+  for(let ang=-total;ang<=total;ang+=step){const root=root0+ang/180;if(root<=0)continue;
+    out.push({angle:ang,cardinal:(rev(ang)%90===0),price:root*root,deltaPct:(root*root-P)/P*100});}
+  return out;
+}
+function sq9NearestSR(P,step=45){
+  const root0=Math.sqrt(P),below=[],above=[];
+  for(let n=-16;n<=16;n++){const root=root0+(n*step)/180;if(root<=0)continue;const v=root*root;if(v<P-1e-9)below.push(v);else if(v>P+1e-9)above.push(v);}
+  below.sort((a,b)=>b-a);above.sort((a,b)=>a-b);
+  return{support:below.slice(0,4),resistance:above.slice(0,4)};
+}
+function sq9Spiral(size=15,center=1){
+  const cells={};let x=0,y=0;cells['0,0']=1;let leg=1,num=1;const dirs=[[1,0],[0,1],[-1,0],[0,-1]];let di=0;
+  while(num<size*size){for(let s=0;s<2;s++){const[dx,dy]=dirs[di%4];
+    for(let k=0;k<leg;k++){if(num>=size*size)break;x+=dx;y+=dy;num++;cells[x+','+y]=num;}di++;}leg++;}
+  const half=Math.floor(size/2),rows=[];
+  for(let r=half;r>=-half;r--){const row=[];
+    for(let c=-half;c<=half;c++){const v=cells[c+','+r];if(v==null){row.push(null);continue;}
+      row.push({val:v+(center-1),row:r,col:c,onCardinal:(c===0||r===0),onDiagonal:(Math.abs(c)===Math.abs(r))});}
+    rows.push(row);}
+  return rows;
+}
+const GANN_RATIOS=[{label:'1x8',tpu:8},{label:'1x4',tpu:4},{label:'1x3',tpu:3},{label:'1x2',tpu:2},
+  {label:'1x1',tpu:1},{label:'2x1',tpu:1/2},{label:'3x1',tpu:1/3},{label:'4x1',tpu:1/4},{label:'8x1',tpu:1/8}];
+function gannFan(pivotPrice,scale,bars,up=true){
+  return GANN_RATIOS.map(r=>({label:r.label,slopePerBar:scale*r.tpu*(up?1:-1),price:pivotPrice+scale*r.tpu*bars*(up?1:-1)}));
+}
+function gannBox(p1,t1,p2,t2,priceDiv=[0,0.25,0.333,0.5,0.667,0.75,1],timeDiv=[0,0.25,0.333,0.5,0.667,0.75,1]){
+  const pHi=Math.max(p1,p2),pLo=Math.min(p1,p2),tA=Math.min(t1,t2),tB=Math.max(t1,t2);
+  return{pHi,pLo,tA,tB,priceLevels:priceDiv.map(f=>({frac:f,price:pLo+(pHi-pLo)*f})),
+    timeLevels:timeDiv.map(f=>({frac:f,bar:Math.round(tA+(tB-tA)*f)}))};
+}
+function sq9Dates(anchorDate,step=45,turns=2){
+  const out=[];for(let ang=step;ang<=turns*360;ang+=step){out.push({angle:ang,days:ang,date:new Date(anchorDate.getTime()+ang*86400000),cardinal:(ang%90===0)});}return out;
+}
+const GANN_DAY_CYCLES=[30,45,49,52,60,72,90,120,135,144,180,225,270,315,360];
+function gannTimeCycles(anchorDate,cycles=GANN_DAY_CYCLES){return cycles.map(c=>({days:c,date:new Date(anchorDate.getTime()+c*86400000)}));}
+const GANN_WEEK_CYCLES=[13,26,39,52,90,104];
+function gannWeekCycles(anchorDate,cycles=GANN_WEEK_CYCLES){return cycles.map(c=>({weeks:c,date:new Date(anchorDate.getTime()+c*7*86400000)}));}
+function fracLabel(f){const map={0:'0',0.125:'1/8',0.25:'2/8',0.333:'1/3',0.375:'3/8',0.5:'4/8',0.625:'5/8',0.667:'2/3',0.75:'6/8',0.875:'7/8',1:'8/8'};return map[f]||f.toFixed(3);}
+function priceDivision(high,low,fracs){return fracs.map(f=>({frac:f,label:fracLabel(f),price:low+(high-low)*f}));}
+const EIGHTHS=[0,0.125,0.25,0.375,0.5,0.625,0.75,0.875,1];
+const THIRDS=[0,0.333333,0.666667,1];
+function planetaryLines(dt,factor,harmonics=3,bodies=['Sun','Mercury','Venus','Mars','Jupiter','Saturn']){
+  return ephemeris(dt,bodies).map(p=>{const lines=[];for(let k=0;k<=harmonics;k++)lines.push({harmonic:k,price:(p.lon+360*k)*factor});return{name:p.name,glyph:p.glyph,lon:p.lon,lines};});
+}
+function sq9PlanetaryIntervals(P,dt,turns=1,bodies=PLANET_ORDER){
+  return ephemeris(dt,bodies).map(p=>{const levels=[];for(let t=-turns;t<=turns;t++)levels.push({turn:t,price:sq9Value(P,p.lon,t)});return{name:p.name,glyph:p.glyph,lon:p.lon,levels};});
+}
+function fmtDeg(x){const i=Math.floor(rev(x)/30),dd=rev(x)-i*30,dg=Math.floor(dd),mn=Math.round((dd-dg)*60);return dg+'° '+ZGLYPH[i]+' '+String(mn).padStart(2,'0')+"'";}
+
+/* ===================== EXTENDED GANN ENGINE (added) ===================== */
+function sampledSq9(P,divisions,turns){const step=360/divisions,root0=Math.sqrt(P),out=[];
+  for(let t=-turns;t<=turns;t++)for(let k=0;k<divisions;k++){const ang=k*step,root=root0+2*t+ang/180;if(root<=0)continue;out.push({turn:t,angle:ang,price:root*root});}return out;}
+function wheel24(P,turns=1){const root0=Math.sqrt(P),out=[];
+  for(let t=0;t<=turns;t++)for(let k=0;k<24;k++){const ang=k*15,root=root0+2*t+ang/180;out.push({turn:t,spoke:k,angle:ang,price:root*root,cardinal:ang%90===0,ordinal:ang%45===0});}return out;}
+function hexCentered(P,count=6){const C=k=>3*k*k-3*k+1;let k=Math.max(1,Math.round((3+Math.sqrt(Math.max(0,12*P-3)))/6));
+  const below=[],above=[];for(let i=-count-2;i<=count+2;i++){const kk=k+i;if(kk<1)continue;const v=C(kk);if(v<P)below.push({k:kk,val:v});else above.push({k:kk,val:v});}
+  below.sort((a,b)=>b.val-a.val);above.sort((a,b)=>a.val-b.val);return{support:below.slice(0,count),resistance:above.slice(0,count),k,center:C(k)};}
+function hexRing(maxRing=6){const C=k=>3*k*k-3*k+1;const rings=[];for(let k=1;k<=maxRing;k++){rings.push({ring:k,start:k===1?1:C(k-1)+1,corner:C(k),count:k===1?1:6*(k-1)});}return rings;}
+function degreeLine(P,degs){const root0=Math.sqrt(P);return degs.map(dg=>{const root=root0+dg/180;return{deg:dg,price:root*root,turns:dg/360};});}
+function highLowDegrees(high,low){const rH=Math.sqrt(high),rL=Math.sqrt(low);const deg=(rH-rL)*180;return{deg,turns:deg/360,rangeRoot:rH-rL,projUp:Math.pow(rH+(deg/180),2),projDn:Math.pow(Math.max(0,rL-(deg/180)),2)};}
+function gannSquares(P,N,scale,anchorDate){const fr=[0,0.125,0.25,0.375,0.5,0.625,0.75,0.875,1];
+  const price=fr.map(f=>({frac:f,label:fracLabel(f),up:P+N*f*scale,dn:P-N*f*scale}));
+  const time=fr.map(f=>({frac:f,label:fracLabel(f),bar:Math.round(N*f),date:new Date(anchorDate.getTime()+Math.round(N*f)*86400000)}));return{price,time,N};}
+function sevenTimesBase(base){const out=[];for(let m=1;m<=7;m++){out.push({mult:m,price:base*m,key:[1,2,3.5,7].includes(m)});if(m<7)out.push({mult:m+0.5,price:base*(m+0.5),key:[3.5].includes(m+0.5)});}return out;}
+function tripleOctave(base){const out=[];for(let oct=0;oct<=3;oct++){const lvl=base*Math.pow(2,oct);out.push({oct,frac:0,price:lvl,octave:true});
+  if(oct<3){const nxt=base*Math.pow(2,oct+1);out.push({oct,frac:0.333,price:lvl+(nxt-lvl)/3,octave:false});out.push({oct,frac:0.667,price:lvl+(nxt-lvl)*2/3,octave:false});}}return out;}
+function tripleOctaveTime(anchorDate,baseDays){const out=[];for(let oct=0;oct<=3;oct++){const d=Math.round(baseDays*Math.pow(2,oct));out.push({oct,days:d,date:new Date(anchorDate.getTime()+d*86400000)});}return out;}
+function zeroPriceFan(scale,bars){return GANN_RATIOS.map(r=>({label:r.label,slope:scale*r.tpu,price:scale*r.tpu*bars}));}
+function zeroDegreeSquares(count=12){const out=[];for(let n=1;n<=count;n++)out.push({n,square:n*n,root:n,deg:n*180});return out;}
+function sq9Intervals(P,turns=4){const root0=Math.sqrt(P),out=[];let prev=null;
+  for(let t=0;t<=turns;t++){const v=Math.pow(root0+2*t,2);out.push({turn:t,price:v,interval:prev==null?null:v-prev});prev=v;}return out;}
+function sq9GannFan(P,scale,bars){const root0=Math.sqrt(P);const angs=[45,90,135,180,225,270,315,360];
+  return angs.map(a=>{const lvl=Math.pow(root0+a/180,2);return{angle:a,price:lvl,projected:lvl+scale*0};});}
+function pyrapoint(P){const root0=Math.sqrt(P),out=[];for(let n=-4;n<=4;n++){const root=root0+n;if(root<=0)continue;out.push({step:n,price:root*root,deg:n*360});}return out;}
+function vibration(P,rate,count=8){const out=[];for(let n=-count;n<=count;n++)out.push({n,price:P+n*rate,harmonic:n%2===0});return out;}
+function numberSearch(n){const root=Math.sqrt(n),lowR=Math.floor(root);const base=lowR*lowR;
+  const deg=(root-lowR)*360;const factors=[];for(let i=1;i*i<=n;i++){if(n%i===0){factors.push(i);if(i!==n/i)factors.push(n/i);}}factors.sort((a,b)=>a-b);
+  return{n,root,sq:n*n,nearestLowerSquare:base,nearestUpperSquare:(lowR+1)*(lowR+1),sq9deg:deg,isSquare:Number.isInteger(root),
+    harmonics:[['½',n/2],['⅓',n/3],['¼',n/4],['2×',n*2],['3×',n*3],['√',root]],factors};}
+function massPressure(year){const out=[];for(let day=0;day<366;day+=6){const a=2*Math.PI*day/365.25;
+  const v=Math.sin(a)+0.5*Math.sin(2*a+1)+0.33*Math.sin(3*a+2)+0.25*Math.sin(4*a+0.5);
+  out.push({day,date:new Date(Date.UTC(year,0,1)+day*86400000),value:v});}return out;}
+function timePriceMeasure(p1,p2,t1,t2,scale){const dp=p2-p1,dt=t2-t1;const ang=Math.atan2(dp/scale,dt)*180/Math.PI;
+  const squared=dt!==0&&Math.abs(Math.abs(dp/scale)-Math.abs(dt))<Math.max(1,Math.abs(dt)*0.03);return{dp,dt,angle:ang,squared,ppb:dt?dp/dt:0};}
+function squaringPoints(P0,anchorDate,scale,count=10){const out=[];for(let b=1;b<=count;b++){const move=b*scale;
+  out.push({bars:b,date:new Date(anchorDate.getTime()+b*86400000),priceUp:P0+move,priceDown:P0-move});}return out;}
+
+
+/* ===================== OHLC DATA LAYER (added) ===================== */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function genDemoHistory(key,anchor,bars=460){
+  let seed=2166136261;for(let i=0;i<key.length;i++){seed^=key.charCodeAt(i);seed=Math.imul(seed,16777619);}
+  const rnd=mulberry32(seed>>>0);const out=[];let price=anchor*0.80;
+  const today=new Date();today.setUTCHours(0,0,0,0);const vol=anchor*0.010;
+  for(let i=bars-1;i>=0;i--){const d=new Date(today.getTime()-i*86400000);const dow=d.getUTCDay();if(dow===0||dow===6)continue;
+    const drift=(anchor-price)*0.0035;const o=price;const c=o+drift+(rnd()-0.5)*2*vol;
+    const hi=Math.max(o,c)+rnd()*vol*0.7,lo=Math.min(o,c)-rnd()*vol*0.7;
+    out.push({t:d.toISOString().slice(0,10),o:+o.toFixed(2),h:+hi.toFixed(2),l:+lo.toFixed(2),c:+c.toFixed(2)});price=c;}
+  return out;
+}
+function parseOHLCcsv(text){
+  const lines=text.trim().split(/\r?\n/),out=[];
+  for(const line of lines){const p=line.split(/[,\t;]/);if(p.length<5)continue;const t=(p[0]||'').trim();
+    if(!/^\d{4}-\d\d-\d\d/.test(t))continue;const o=+p[1],h=+p[2],l=+p[3],c=+p[4];
+    if([o,h,l,c].some(v=>isNaN(v)))continue;out.push({t:t.slice(0,10),o,h,l,c});}
+  out.sort((a,b)=>a.t<b.t?-1:1);return out;
+}
+function businessDaysFwd(fromDate,calDays){return calDays*5/7;}
+
+
+/* ===================== UI HELPERS ===================== */
+const {useState,useEffect,useMemo}=React;
+const INDICES={
+  NSEI:{name:'Nifty 50',region:'India',yahoo:'^NSEI',anchor:25000,scale:25,dec:2},
+  NSEBANK:{name:'Bank Nifty',region:'India',yahoo:'^NSEBANK',anchor:56000,scale:50,dec:2},
+  CNX500:{name:'Nifty 500',region:'India',yahoo:'^CRSLDX',anchor:23000,scale:20,dec:2},
+  DJIA:{name:'Dow Jones',region:'US',yahoo:'^DJI',anchor:43000,scale:40,dec:2},
+  NDX:{name:'Nasdaq 100',region:'US',yahoo:'^NDX',anchor:22000,scale:20,dec:2},
+  SPX:{name:'S&P 500',region:'US',yahoo:'^GSPC',anchor:6000,scale:6,dec:2}
+};
+const TOOLS=[
+  {group:'Overview',items:[{id:'chart',name:'Price Chart',ic:'📈'},{id:'dash',name:'Dashboard',ic:'▤'}]},
+  {group:'Gann Tools',items:[
+    {id:'sq9calc',name:'Square of 9 Calculator',ic:'◎'},
+    {id:'sq9spiral',name:'Square of 9 Wheel',ic:'🌀'},
+    {id:'statsq9',name:'Static Square of 9',ic:'◉'},
+    {id:'dynsq9',name:'Dynamic Square of 9',ic:'◍'},
+    {id:'sq9fan',name:'Square of 9 Gann Fan',ic:'📏'},
+    {id:'sq9int',name:'Square of 9 Intervals',ic:'⋮'},
+    {id:'gannfan',name:'Gann Fan / Angles',ic:'📐'},
+    {id:'dynfan',name:'Dynamic Gann Fan Angles',ic:'∠'},
+    {id:'dynlevels',name:'Dynamic Gann Levels',ic:'≡'},
+    {id:'gannbox',name:'Gann Box',ic:'▦'},
+    {id:'gsquares',name:'Gann Squares',ic:'⊠'},
+    {id:'hexint',name:'Dynamic Hex Intervals',ic:'⬡'},
+    {id:'wheel24',name:'Static Wheel of 24',ic:'⊕'},
+    {id:'div3',name:'Division of 3rds',ic:'⅓'},
+    {id:'div8',name:'Division of 8ths',ic:'⅛'},
+    {id:'pricediv',name:'Price Division (3+8)',ic:'⊟'},
+    {id:'measdeg',name:'Gann Measured Degree Line',ic:'∡'},
+    {id:'singledeg',name:'Gann Single Degree Line',ic:'／'},
+    {id:'hilodeg',name:'High/Low Degree Angles',ic:'∢'},
+    {id:'zerodeg',name:'Zero Degree Angles',ic:'⓪'},
+    {id:'zeroprice',name:'Zero Price Fan',ic:'⟋'},
+    {id:'seventimes',name:'Seven Times The Base',ic:'⑦'},
+    {id:'trioct',name:'Triple Octave S/R',ic:'♫'},
+    {id:'pyrapoint',name:'Pyrapoint',ic:'▲'},
+    {id:'vibration',name:'Pattern of Vibration',ic:'〰'},
+    {id:'masspressure',name:'Gann Mass Pressure',ic:'🌊'},
+    {id:'numsearch',name:'Number Searcher',ic:'#'},
+    {id:'sq9dates',name:'Square of 9 Dates',ic:'📅'},
+    {id:'timecycles',name:'Gann Day Count / Cycles',ic:'↻'},
+    {id:'timediv',name:'Time Division (3+8)',ic:'⊞'},
+    {id:'tdiv3',name:'Time Division of 3rds',ic:'⌗'},
+    {id:'tdiv8',name:'Time Division of 8ths',ic:'⌗'},
+    {id:'trioctt',name:'Triple Octave Time S/R',ic:'♪'},
+    {id:'tplabels',name:'Time Price Labels',ic:'🏷'},
+    {id:'tpmeasure',name:'Time Price Measure',ic:'⤡'},
+    {id:'sqrange',name:'Gann Square Range',ic:'▭'},
+    {id:'sqrangeang',name:'Gann Square Range Angle',ic:'◿'},
+    {id:'sqrangemark',name:'Gann Square Range Marker',ic:'⊡'},
+    {id:'sqmark',name:'Gann Square Markers',ic:'⊞'},
+    {id:'sqswing',name:'Gann Square Swing Markers',ic:'⌁'},
+    {id:'sqtopbot',name:'Gann Square Top/Bottom',ic:'⤒'},
+    {id:'overlay',name:'Overlay Tool',ic:'▢'},
+    {id:'patternmatch',name:'Pattern Matcher',ic:'⧉'}
+  ]},
+  {group:'Astro Tools',items:[
+    {id:'ephem',name:'Ephemeris',ic:'✦'},
+    {id:'aspects',name:'Planetary Aspects',ic:'✧'},
+    {id:'moon',name:'Moon Phases',ic:'☾'},
+    {id:'retro',name:'Planetary Retrograde',ic:'℞'},
+    {id:'declin',name:'Declination',ic:'∡'},
+    {id:'planetlines',name:'Gann Planetary Lines',ic:'≣'},
+    {id:'sq9planet',name:'Sq9 Planetary Intervals',ic:'❂'}
+  ]},
+  {group:'Gann Charts',items:[
+    {id:'csq9',name:'The Square of Nine',ic:'🌀'},
+    {id:'csqfour',name:'The Square of Four',ic:'◳'},
+    {id:'chexagon',name:'The Hexagon Chart',ic:'⬡'},
+    {id:'cwheel24',name:'The Wheel of 24',ic:'◴'}
+  ]},
+  {group:'Info',items:[{id:'about',name:'About / Data Source',ic:'ⓘ'}]}
+];
+function fmtN(x,dec=2){if(x==null||isNaN(x))return '–';return x.toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec});}
+function fmtDate(d){return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});}
+function fmtWk(d){return d.toLocaleDateString('en-GB',{weekday:'short'});}
+const Field=({label,children})=>(<div className="ctrl"><label>{label}</label>{children}</div>);
+const Num=({value,onChange,step,w})=>(<input type="number" value={value} step={step||'any'} style={{width:(w||100)+'px'}} onChange={e=>onChange(parseFloat(e.target.value))}/>);
+
+/* ===================== PANELS ===================== */
+function Dashboard({price,dt,ix}){
+  const sr=useMemo(()=>sq9NearestSR(price),[price]);
+  const mp=useMemo(()=>moonPhase(dt),[dt]);
+  const asp=useMemo(()=>aspects(dt).slice(0,5),[dt]);
+  const eph=useMemo(()=>ephemeris(dt),[dt]);
+  const retro=eph.filter(p=>p.retro&&p.name!=='Moon');
+  return(<div>
+    <h2 className="pg-head">{ix.name} <span className="sub">· Gann &amp; Astro Snapshot</span></h2>
+    <p className="pg-desc">Live calculations for the selected anchor price and date. Square-of-9 levels, lunar phase, and the tightest planetary aspects update instantly when you change the inputs above.</p>
+    <div className="cards">
+      <div className="card"><h4>Anchor Price</h4><div className="big grn">{fmtN(price,ix.dec)}</div><div className="mut" style={{fontSize:'11px',marginTop:4}}>√P = {Math.sqrt(price).toFixed(3)}</div></div>
+      <div className="card"><h4>Sq9 Resistance</h4>{sr.resistance.slice(0,3).map((v,i)=><div key={i} className="amb">{fmtN(v,ix.dec)}</div>)}</div>
+      <div className="card"><h4>Sq9 Support</h4>{sr.support.slice(0,3).map((v,i)=><div key={i} className="pos">{fmtN(v,ix.dec)}</div>)}</div>
+      <div className="card"><h4>Moon Phase</h4><div style={{display:'flex',gap:12,alignItems:'center'}}><MoonIcon elong={mp.elong}/><div><div className="big" style={{fontSize:'15px'}}>{mp.phaseName}</div><div className="mut" style={{fontSize:'11px'}}>{(mp.illum*100).toFixed(0)}% lit · {mp.age.toFixed(1)}d old</div></div></div></div>
+      <div className="card"><h4>Retrograde Now</h4>{retro.length?retro.map(p=><span key={p.name} style={{color:PCOLOR[p.name],marginRight:8}}><span className="glyph">{p.glyph}</span> {p.name}</span>):<span className="mut">None (of visible set)</span>}</div>
+      <div className="card"><h4>Sun Position</h4><div className="big cyn" style={{fontSize:'16px'}}>{fmtDeg(eph[0].lon)}</div><div className="mut" style={{fontSize:'11px',marginTop:4}}>{eph[0].sign}</div></div>
+    </div>
+    <div className="panel" style={{marginTop:16}}>
+      <h3>Tightest Aspects · {fmtDate(dt)}</h3>
+      <table><thead><tr><th className="l">Bodies</th><th className="l">Aspect</th><th>Exact</th><th>Orb</th></tr></thead><tbody>
+        {asp.map((a,i)=><tr key={i}>
+          <td className="l"><span className="glyph" style={{color:PCOLOR[a.a]}}>{a.aGlyph}</span> {a.a} — <span className="glyph" style={{color:PCOLOR[a.b]}}>{a.bGlyph}</span> {a.b}</td>
+          <td className="l" style={{color:a.col}}>{a.aspGlyph} {a.aspect}</td><td>{a.exact}°</td><td>{a.orb.toFixed(2)}°</td></tr>)}
+      </tbody></table>
+    </div>
+  </div>);
+}
+function MoonIcon({elong}){
+  const lit=(1-cos(elong))/2;const waxing=elong<180;
+  const w=Math.abs(0.5-lit)*100;const leftLit=!waxing;
+  return(<div className="moon"><div className="lit" style={{width:lit*100+'%',left:waxing?'auto':0,right:waxing?0:'auto'}}></div></div>);
+}
+function Sq9Calc({price,ix}){
+  const [step,setStep]=useState(45);const [turns,setTurns]=useState(2);
+  const levels=useMemo(()=>sq9Levels(price,step,turns),[price,step,turns]);
+  const sr=useMemo(()=>sq9NearestSR(price,step),[price,step]);
+  return(<div>
+    <h2 className="pg-head">Square of 9 <span className="sub">Calculator</span></h2>
+    <p className="pg-desc">Gann's master calculator. Price levels are projected around the anchor by rotating its square root: a full 360° turn adds 2 to √P. Cardinal angles (90/180/270/360) and the 45° diagonals act as the strongest support/resistance.</p>
+    <div className="panel"><div className="row">
+      <Field label="Angle step°"><select value={step} onChange={e=>setStep(+e.target.value)}>{[15,22.5,30,45,90].map(s=><option key={s} value={s}>{s}°</option>)}</select></Field>
+      <Field label="Rotations ±"><select value={turns} onChange={e=>setTurns(+e.target.value)}>{[1,2,3,4].map(s=><option key={s} value={s}>{s}</option>)}</select></Field>
+      <div className="mut">Anchor <span className="pricebox">{fmtN(price,ix.dec)}</span> · √P = {Math.sqrt(price).toFixed(4)}</div>
+    </div></div>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+      <div className="panel"><h3>Nearest Resistance</h3><table><tbody>{sr.resistance.map((v,i)=><tr key={i}><td className="l"><span className="tag res">R{i+1}</span></td><td>{fmtN(v,ix.dec)}</td><td className="amb">+{((v-price)/price*100).toFixed(2)}%</td></tr>)}</tbody></table></div>
+      <div className="panel"><h3>Nearest Support</h3><table><tbody>{sr.support.map((v,i)=><tr key={i}><td className="l"><span className="tag sup">S{i+1}</span></td><td>{fmtN(v,ix.dec)}</td><td className="pos">{((v-price)/price*100).toFixed(2)}%</td></tr>)}</tbody></table></div>
+    </div>
+    <div className="panel"><h3>Full Rotation Ladder</h3><div className="scroll"><table><thead><tr><th>Angle</th><th>Type</th><th>Price</th><th>Δ%</th></tr></thead><tbody>
+      {levels.map((l,i)=><tr key={i}>
+        <td>{l.angle>0?'+':''}{l.angle}°</td>
+        <td>{l.cardinal?<span className="tag card">CARDINAL</span>:<span className="mut">ordinal</span>}</td>
+        <td style={{color:Math.abs(l.price-price)<1e-6?'var(--grn)':'inherit'}}>{fmtN(l.price,ix.dec)}</td>
+        <td className={l.deltaPct>=0?'amb':'pos'}>{l.deltaPct>=0?'+':''}{l.deltaPct.toFixed(2)}%</td></tr>)}
+    </tbody></table></div></div>
+  </div>);
+}
+function Sq9Wheel({price}){
+  const [size,setSize]=useState(15);
+  const [mode,setMode]=useState('one'); // one = start at 1, price = center near price
+  const start=mode==='one'?1:Math.max(1,Math.round(price)-Math.floor(size*size/2));
+  const rows=useMemo(()=>sq9Spiral(size,start),[size,start]);
+  return(<div>
+    <h2 className="pg-head">Square of 9 <span className="sub">Wheel / Spiral</span></h2>
+    <p className="pg-desc">The Square of Nine arranges numbers in a spiral from a center cell. Numbers on the same spoke (cardinal cross in green, 45° diagonals in cyan) are mathematically related by Gann's rotations and tend to mark turning points.</p>
+    <div className="panel"><div className="row">
+      <Field label="Grid size"><select value={size} onChange={e=>setSize(+e.target.value)}>{[9,11,15,19,23].map(s=><option key={s} value={s}>{s}×{s}</option>)}</select></Field>
+      <Field label="Center"><select value={mode} onChange={e=>setMode(e.target.value)}><option value="one">Start at 1 (classic)</option><option value="price">Around anchor price</option></select></Field>
+      <div className="mut">Center cell: <span className="amb">{fmtN(start,0)}</span></div>
+    </div>
+    <div style={{overflow:'auto',marginTop:10}}><table className="spiral"><tbody>
+      {rows.map((row,ri)=><tr key={ri}>{row.map((c,ci)=>{
+        if(!c)return<td key={ci}></td>;
+        const cls=c.row===0&&c.col===0?'center':c.onCardinal?'card':c.onDiagonal?'diag':'';
+        return<td key={ci} className={cls}>{fmtN(c.val,0)}</td>;})}</tr>)}
+    </tbody></table></div>
+    <div className="legend"><span><i className="sw" style={{background:'var(--amb)'}}></i>Center</span><span><i className="sw" style={{background:'#0e2b22'}}></i>Cardinal cross</span><span><i className="sw" style={{background:'#14233a'}}></i>45° diagonals</span></div>
+    </div>
+  </div>);
+}
+function GannFanPanel({price,ix}){
+  const [scale,setScale]=useState(ix.scale);const [bars,setBars]=useState(30);const [up,setUp]=useState(true);
+  useEffect(()=>setScale(ix.scale),[ix]);
+  const fan=useMemo(()=>gannFan(price,scale,bars,up),[price,scale,bars,up]);
+  const prices=fan.map(f=>f.price).concat([price]);
+  const pMin=Math.min(...prices),pMax=Math.max(...prices),pad=(pMax-pMin)*0.08||1;
+  const W=620,H=340,padL=8,padR=70;
+  const yOf=p=>H-((p-(pMin-pad))/((pMax+pad)-(pMin-pad)))*H;
+  return(<div>
+    <h2 className="pg-head">Gann Fan <span className="sub">/ Angles</span></h2>
+    <p className="pg-desc">Gann angles project geometric support/resistance from a pivot. The 1×1 (45°) is the master angle — one unit of price per unit of time. Set the scale (price units per bar) to your chart, then read where each angle sits after N bars.</p>
+    <div className="panel"><div className="row">
+      <Field label="Pivot price"><span className="pricebox" style={{padding:'5px 0',display:'inline-block'}}>{fmtN(price,ix.dec)}</span></Field>
+      <Field label="Scale (price/bar)"><Num value={scale} onChange={setScale}/></Field>
+      <Field label="Bars ahead"><Num value={bars} onChange={setBars} w={80}/></Field>
+      <Field label="Direction"><select value={up?'up':'dn'} onChange={e=>setUp(e.target.value==='up')}><option value="up">Rising ▲</option><option value="dn">Falling ▼</option></select></Field>
+    </div></div>
+    <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:14,alignItems:'start'}}>
+      <div className="panel"><h3>Angle Values @ {bars} bars</h3><table><thead><tr><th>Angle</th><th>Slope/bar</th><th>Price</th></tr></thead><tbody>
+        {fan.map((f,i)=><tr key={i}><td className={f.label==='1x1'?'amb':''} style={{textAlign:'left'}}>{f.label==='1x1'?'★ ':''}{f.label}</td><td>{f.slopePerBar>=0?'+':''}{fmtN(f.slopePerBar,2)}</td><td>{fmtN(f.price,ix.dec)}</td></tr>)}
+      </tbody></table></div>
+      <div className="panel"><h3>Fan Projection</h3>
+        <svg viewBox={`0 0 ${W+padR} ${H}`} width="100%" style={{maxWidth:W+padR+'px'}}>
+          <rect x="0" y="0" width={W+padR} height={H} fill="#0a0f17"/>
+          {[0.25,0.5,0.75].map((g,i)=><line key={i} x1="0" y1={H*g} x2={W} y2={H*g} stroke="var(--gridline)"/>)}
+          {fan.map((f,i)=>{const y2=yOf(f.price);const star=f.label==='1x1';
+            return<g key={i}><line x1={padL} y1={yOf(price)} x2={W} y2={y2} stroke={star?'var(--amb)':'var(--border2)'} strokeWidth={star?2:1}/>
+            <text x={W+3} y={y2+4} fill={star?'var(--amb)':'var(--muted)'} fontSize="10">{f.label}</text></g>;})}
+          <circle cx={padL} cy={yOf(price)} r="4" fill="var(--grn)"/>
+          <text x={padL+6} y={yOf(price)-6} fill="var(--grn)" fontSize="10">pivot {fmtN(price,0)}</text>
+        </svg>
+      </div>
+    </div>
+  </div>);
+}
+function GannBoxPanel({price,dt,ix}){
+  const [p1,setP1]=useState(Math.round(price*0.92));const [p2,setP2]=useState(Math.round(price*1.08));
+  const [bars,setBars]=useState(90);
+  useEffect(()=>{setP1(Math.round(price*0.92));setP2(Math.round(price*1.08));},[price]);
+  const box=useMemo(()=>gannBox(p1,0,p2,bars),[p1,p2,bars]);
+  const W=560,H=320;
+  const xOf=f=>20+f*(W-40);const yOf=f=>H-20-f*(H-40);
+  return(<div>
+    <h2 className="pg-head">Gann Box</h2>
+    <p className="pg-desc">A price/time rectangle between two pivots, subdivided by Gann ratios. Horizontal lines are price retracements (1/8ths &amp; 1/3rds); vertical lines are time divisions. The diagonals and grid crossings flag likely reversal coordinates.</p>
+    <div className="panel"><div className="row">
+      <Field label="Low price"><Num value={p1} onChange={setP1}/></Field>
+      <Field label="High price"><Num value={p2} onChange={setP2}/></Field>
+      <Field label="Box width (bars)"><Num value={bars} onChange={setBars} w={90}/></Field>
+    </div></div>
+    <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:14,alignItems:'start'}}>
+      <div className="panel"><h3>Price Divisions</h3><table><thead><tr><th>Level</th><th>Price</th></tr></thead><tbody>
+        {box.priceLevels.slice().reverse().map((l,i)=><tr key={i}><td style={{textAlign:'left'}} className="cyn">{(l.frac*100).toFixed(1).replace('.0','')}%</td><td>{fmtN(l.price,ix.dec)}</td></tr>)}
+      </tbody></table>
+      <h3 style={{marginTop:12}}>Time Divisions</h3><table><thead><tr><th>Level</th><th>Bar</th></tr></thead><tbody>
+        {box.timeLevels.map((l,i)=><tr key={i}><td style={{textAlign:'left'}} className="amb">{(l.frac*100).toFixed(1).replace('.0','')}%</td><td>{l.bar}</td></tr>)}
+      </tbody></table></div>
+      <div className="panel"><h3>Box Geometry</h3>
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{maxWidth:W+'px'}}>
+          <rect x="0" y="0" width={W} height={H} fill="#0a0f17"/>
+          {box.priceLevels.map((l,i)=><g key={'p'+i}><line x1={xOf(0)} y1={yOf(l.frac)} x2={xOf(1)} y2={yOf(l.frac)} stroke={l.frac===0.5?'var(--amb)':'var(--gridline)'}/><text x={xOf(1)+3} y={yOf(l.frac)+3} fill="var(--muted)" fontSize="9">{(l.frac*100).toFixed(0)}</text></g>)}
+          {box.timeLevels.map((l,i)=><line key={'t'+i} x1={xOf(l.frac)} y1={yOf(0)} x2={xOf(l.frac)} y2={yOf(1)} stroke={l.frac===0.5?'var(--amb)':'var(--gridline)'}/>)}
+          <line x1={xOf(0)} y1={yOf(0)} x2={xOf(1)} y2={yOf(1)} stroke="var(--cyn)" strokeWidth="1.5"/>
+          <line x1={xOf(0)} y1={yOf(1)} x2={xOf(1)} y2={yOf(0)} stroke="var(--cyn)" strokeWidth="1.5"/>
+          <rect x={xOf(0)} y={yOf(1)} width={xOf(1)-xOf(0)} height={yOf(0)-yOf(1)} fill="none" stroke="var(--border2)" strokeWidth="1.5"/>
+        </svg>
+      </div>
+    </div>
+  </div>);
+}
+function Sq9DatesPanel({dt}){
+  const [step,setStep]=useState(45);const [turns,setTurns]=useState(2);
+  const dates=useMemo(()=>sq9Dates(dt,step,turns),[dt,step,turns]);
+  return(<div>
+    <h2 className="pg-head">Square of 9 <span className="sub">Dates</span></h2>
+    <p className="pg-desc">Time counterpart of the Square of 9: starting from the anchor date, each calendar day equals one degree of rotation. Cardinal counts (90/180/270/360 days) project the strongest time-turning windows.</p>
+    <div className="panel"><div className="row">
+      <Field label="Angle step°"><select value={step} onChange={e=>setStep(+e.target.value)}>{[15,30,45,90].map(s=><option key={s} value={s}>{s}°</option>)}</select></Field>
+      <Field label="Rotations"><select value={turns} onChange={e=>setTurns(+e.target.value)}>{[1,2,3,4].map(s=><option key={s} value={s}>{s}</option>)}</select></Field>
+      <div className="mut">Anchor date: <span className="cyn">{fmtDate(dt)}</span></div>
+    </div></div>
+    <div className="panel"><div className="scroll"><table><thead><tr><th>Angle</th><th>Days</th><th>Type</th><th className="l">Projected Date</th><th>Day</th></tr></thead><tbody>
+      {dates.map((d,i)=><tr key={i}><td>{d.angle}°</td><td>{d.days}</td><td>{d.cardinal?<span className="tag card">CARDINAL</span>:<span className="mut">ordinal</span>}</td><td className="l">{fmtDate(d.date)}</td><td className="mut">{fmtWk(d.date)}</td></tr>)}
+    </tbody></table></div></div>
+  </div>);
+}
+function TimeCyclesPanel({dt}){
+  const days=useMemo(()=>gannTimeCycles(dt),[dt]);
+  const weeks=useMemo(()=>gannWeekCycles(dt),[dt]);
+  return(<div>
+    <h2 className="pg-head">Gann Day Count <span className="sub">/ Time Cycles</span></h2>
+    <p className="pg-desc">Gann's anniversary and cycle counts forward from a significant high or low. Watch the 30/45/60/72/90/120/144/180/360-day marks and the 13/26/52-week harmonics for recurring turning points.</p>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+      <div className="panel"><h3>Day Cycles</h3><div className="scroll"><table><thead><tr><th>+Days</th><th className="l">Date</th><th>Day</th></tr></thead><tbody>
+        {days.map((d,i)=><tr key={i}><td className={[90,180,360,144].includes(d.days)?'amb':''}>{d.days}</td><td className="l">{fmtDate(d.date)}</td><td className="mut">{fmtWk(d.date)}</td></tr>)}
+      </tbody></table></div></div>
+      <div className="panel"><h3>Week Cycles</h3><table><thead><tr><th>+Weeks</th><th className="l">Date</th><th>Day</th></tr></thead><tbody>
+        {weeks.map((d,i)=><tr key={i}><td className={[52,26].includes(d.weeks)?'amb':''}>{d.weeks}</td><td className="l">{fmtDate(d.date)}</td><td className="mut">{fmtWk(d.date)}</td></tr>)}
+      </tbody></table>
+      <div className="note">Highlighted rows are the major Gann anniversaries (¼, ½, full-year &amp; 144).</div></div>
+    </div>
+  </div>);
+}
+function PriceDivPanel({price,ix}){
+  const [hi,setHi]=useState(Math.round(price*1.1));const [lo,setLo]=useState(Math.round(price*0.9));
+  useEffect(()=>{setHi(Math.round(price*1.1));setLo(Math.round(price*0.9));},[price]);
+  const e=useMemo(()=>priceDivision(hi,lo,EIGHTHS),[hi,lo]);
+  const t=useMemo(()=>priceDivision(hi,lo,THIRDS),[hi,lo]);
+  return(<div>
+    <h2 className="pg-head">Price Division <span className="sub">3rds &amp; 8ths</span></h2>
+    <p className="pg-desc">Gann divided every range into halves, thirds, and eighths. The 50% and 2/3 (66.7%) retracements are the most watched; the 3/8, 4/8, 5/8 zone is the classic "balance" band.</p>
+    <div className="panel"><div className="row">
+      <Field label="Range high"><Num value={hi} onChange={setHi}/></Field>
+      <Field label="Range low"><Num value={lo} onChange={setLo}/></Field>
+      <div className="mut">Range = {fmtN(hi-lo,ix.dec)}</div>
+    </div></div>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+      <div className="panel"><h3>Eighths</h3><table><thead><tr><th className="l">Level</th><th>Price</th></tr></thead><tbody>
+        {e.slice().reverse().map((l,i)=><tr key={i}><td className="l"><span className={l.frac===0.5?'amb':'cyn'}>{l.label}</span> <span className="mut">({(l.frac*100).toFixed(1)}%)</span></td><td>{fmtN(l.price,ix.dec)}</td></tr>)}
+      </tbody></table></div>
+      <div className="panel"><h3>Thirds</h3><table><thead><tr><th className="l">Level</th><th>Price</th></tr></thead><tbody>
+        {t.slice().reverse().map((l,i)=><tr key={i}><td className="l"><span className="amb">{l.label}</span> <span className="mut">({(l.frac*100).toFixed(1)}%)</span></td><td>{fmtN(l.price,ix.dec)}</td></tr>)}
+      </tbody></table></div>
+    </div>
+  </div>);
+}
+function TimeDivPanel({dt}){
+  const [d1,setD1]=useState(()=>{const d=new Date(dt.getTime()-120*86400000);return d.toISOString().slice(0,10);});
+  const [d2,setD2]=useState(()=>dt.toISOString().slice(0,10));
+  const t1=new Date(d1+'T12:00:00Z').getTime(),t2=new Date(d2+'T12:00:00Z').getTime();
+  const span=(t2-t1)/86400000;
+  const rows=(fracs)=>fracs.map(f=>({frac:f,label:fracLabel(f),date:new Date(t1+(t2-t1)*f)}));
+  const e=rows(EIGHTHS),t=rows(THIRDS);
+  return(<div>
+    <h2 className="pg-head">Time Division <span className="sub">3rds &amp; 8ths</span></h2>
+    <p className="pg-desc">Apply the same 1/8 and 1/3 proportions to a time span between two pivot dates. The interior dates often coincide with intermediate swing highs and lows.</p>
+    <div className="panel"><div className="row">
+      <Field label="From date"><input type="date" value={d1} onChange={e=>setD1(e.target.value)}/></Field>
+      <Field label="To date"><input type="date" value={d2} onChange={e=>setD2(e.target.value)}/></Field>
+      <div className="mut">Span = {span.toFixed(0)} days</div>
+    </div></div>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+      <div className="panel"><h3>Eighths</h3><table><thead><tr><th className="l">Level</th><th className="l">Date</th></tr></thead><tbody>
+        {e.map((l,i)=><tr key={i}><td className="l"><span className={l.frac===0.5?'amb':'cyn'}>{l.label}</span></td><td className="l">{fmtDate(l.date)}</td></tr>)}
+      </tbody></table></div>
+      <div className="panel"><h3>Thirds</h3><table><thead><tr><th className="l">Level</th><th className="l">Date</th></tr></thead><tbody>
+        {t.map((l,i)=><tr key={i}><td className="l"><span className="amb">{l.label}</span></td><td className="l">{fmtDate(l.date)}</td></tr>)}
+      </tbody></table></div>
+    </div>
+  </div>);
+}
+function EphemPanel({dt}){
+  const [helio,setHelio]=useState(false);
+  const eph=useMemo(()=>ephemeris(dt),[dt]);
+  return(<div>
+    <h2 className="pg-head">Ephemeris</h2>
+    <p className="pg-desc">Geocentric planetary positions for the anchor date (00:00 UTC + your time). Longitude is along the ecliptic; the sign &amp; degree, declination, daily speed and retrograde state are computed from Schlyter's algorithms (≈arc-minute accuracy).</p>
+    <div className="panel"><div className="row">
+      <div className="mut">Date/time (UTC): <span className="cyn">{dt.toISOString().slice(0,16).replace('T',' ')}</span></div>
+    </div>
+    <div className="scroll" style={{marginTop:8}}><table><thead><tr><th className="l">Body</th><th>Longitude</th><th className="l">Sign</th><th>Decl.</th><th>Speed °/d</th><th>State</th><th>Dist (AU)</th></tr></thead><tbody>
+      {eph.map((p,i)=><tr key={i}>
+        <td className="l"><span className="glyph" style={{color:PCOLOR[p.name]}}>{p.glyph}</span> {p.name}</td>
+        <td>{p.lon.toFixed(3)}°</td>
+        <td className="l">{fmtDeg(p.lon)} <span className="mut">{p.sign}</span></td>
+        <td className={p.dec>=0?'pos':'neg'}>{p.dec>=0?'+':''}{p.dec.toFixed(2)}°</td>
+        <td className={p.speed<0?'neg':'mut'}>{p.speed>=0?'+':''}{p.speed.toFixed(3)}</td>
+        <td>{p.retro?<span className="tag retro">℞ RETRO</span>:<span className="pos">direct</span>}</td>
+        <td className="mut">{p.name==='Moon'?(p.dist).toFixed(1)+' ER':p.dist.toFixed(3)}</td></tr>)}
+    </tbody></table></div></div>
+  </div>);
+}
+function AspectsPanel({dt}){
+  const eph=useMemo(()=>ephemeris(dt),[dt]);
+  const asp=useMemo(()=>aspects(dt),[dt]);
+  const idx={};eph.forEach((p,i)=>idx[p.name]=i);
+  const cell=(a,b)=>{if(a===b)return null;
+    const sep=Math.abs(rev180(eph[idx[a]].lon-eph[idx[b]].lon));
+    for(const A of ASPECTS){if(Math.abs(sep-A.angle)<=A.orb)return{g:A.glyph,c:A.col,orb:Math.abs(sep-A.angle)};}return null;};
+  return(<div>
+    <h2 className="pg-head">Planetary Aspects</h2>
+    <p className="pg-desc">Angular relationships between planets (geocentric longitudes). Conjunction 0°, Sextile 60°, Square 90°, Trine 120°, Opposition 180° — within orb. Hard aspects (□ ☍) often coincide with volatility and turning points.</p>
+    <div className="panel"><h3>Active Aspects ({asp.length}) · {fmtDate(dt)}</h3><div className="scroll"><table><thead><tr><th className="l">Pair</th><th className="l">Aspect</th><th>Exact</th><th>Separation</th><th>Orb</th></tr></thead><tbody>
+      {asp.map((a,i)=><tr key={i}>
+        <td className="l"><span className="glyph" style={{color:PCOLOR[a.a]}}>{a.aGlyph}</span> {a.a} — <span className="glyph" style={{color:PCOLOR[a.b]}}>{a.bGlyph}</span> {a.b}</td>
+        <td className="l" style={{color:a.col}}>{a.aspGlyph} {a.aspect}</td><td>{a.exact}°</td><td>{a.sep.toFixed(2)}°</td><td>{a.orb.toFixed(2)}°</td></tr>)}
+    </tbody></table></div></div>
+    <div className="panel"><h3>Aspect Grid</h3><div style={{overflow:'auto'}}><table style={{width:'auto'}}><thead><tr><th></th>{eph.map(p=><th key={p.name}><span className="glyph" style={{color:PCOLOR[p.name]}}>{p.glyph}</span></th>)}</tr></thead><tbody>
+      {eph.map((p,ri)=><tr key={ri}><td className="l"><span className="glyph" style={{color:PCOLOR[p.name]}}>{p.glyph}</span> {p.name}</td>
+        {eph.map((q,ci)=>{const c=ci<=ri?null:cell(p.name,q.name);return<td key={ci} style={{textAlign:'center',color:c?c.c:'var(--dim)'}}>{c?c.g:(ci===ri?'·':'')}</td>;})}</tr>)}
+    </tbody></table></div></div>
+  </div>);
+}
+function MoonPanel({dt}){
+  const mp=useMemo(()=>moonPhase(dt),[dt]);
+  const ev=useMemo(()=>nextMoonEvents(dt,8),[dt]);
+  return(<div>
+    <h2 className="pg-head">Moon Phases</h2>
+    <p className="pg-desc">Lunar phase is the Moon–Sun elongation. New/Full moons and the quarters are classic short-cycle timing markers; many Gann/astro traders watch them for intraday and swing reversals.</p>
+    <div className="cards">
+      <div className="card" style={{display:'flex',gap:16,alignItems:'center'}}><MoonIcon elong={mp.elong}/><div><div className="big" style={{fontSize:'16px'}}>{mp.phaseName}</div><div className="mut">{(mp.illum*100).toFixed(0)}% illuminated</div><div className="mut">Age {mp.age.toFixed(1)} days · elong {mp.elong.toFixed(1)}°</div></div></div>
+    </div>
+    <div className="panel" style={{marginTop:14}}><h3>Upcoming Phase Events</h3><table><thead><tr><th className="l">Phase</th><th className="l">Date</th><th className="l">Time (UTC)</th><th>In</th></tr></thead><tbody>
+      {ev.map((e,i)=>{const days=(e.date-dt)/86400000;return<tr key={i}><td className="l">{e.label==='New Moon'?'🌑':e.label==='Full Moon'?'🌕':e.label==='First Quarter'?'🌓':'🌗'} {e.label}</td><td className="l">{fmtDate(e.date)}</td><td className="l mut">{e.date.toISOString().slice(11,16)}</td><td className="cyn">{days.toFixed(1)}d</td></tr>;})}
+    </tbody></table></div>
+  </div>);
+}
+function RetroPanel({dt}){
+  const eph=useMemo(()=>ephemeris(dt,['Mercury','Venus','Mars','Jupiter','Saturn','Uranus','Neptune']),[dt]);
+  return(<div>
+    <h2 className="pg-head">Planetary Retrograde</h2>
+    <p className="pg-desc">A planet is retrograde when its geocentric longitude is decreasing (apparent backward motion). Stations (speed near zero) and retrograde periods are watched as shifts in market character — Mercury retrograde being the most cited.</p>
+    <div className="panel"><table><thead><tr><th className="l">Planet</th><th>Longitude</th><th>Speed °/day</th><th>Motion</th></tr></thead><tbody>
+      {eph.map((p,i)=><tr key={i}><td className="l"><span className="glyph" style={{color:PCOLOR[p.name]}}>{p.glyph}</span> {p.name}</td>
+        <td>{fmtDeg(p.lon)}</td><td className={p.speed<0?'neg':'pos'}>{p.speed>=0?'+':''}{p.speed.toFixed(4)}</td>
+        <td>{p.retro?<span className="tag retro">℞ RETROGRADE</span>:Math.abs(p.speed)<0.02?<span className="tag card">STATION</span>:<span className="pos">DIRECT</span>}</td></tr>)}
+    </tbody></table></div>
+  </div>);
+}
+function DeclinPanel({dt}){
+  const eph=useMemo(()=>ephemeris(dt),[dt]);
+  const maxD=Math.max(...eph.map(p=>Math.abs(p.dec)),25);
+  const W=620,H=260,mid=H/2;
+  const xOf=i=>40+i*((W-60)/(eph.length-1));const yOf=d=>mid-(d/maxD)*(mid-20);
+  return(<div>
+    <h2 className="pg-head">Declination</h2>
+    <p className="pg-desc">Declination is a body's angle north (+) or south (−) of the celestial equator. Planets at the same declination are "parallel" (like a conjunction); maximum declination and 0° crossings are timing signals.</p>
+    <div className="panel"><h3>Declination Chart</h3>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{maxWidth:W+'px'}}>
+        <rect x="0" y="0" width={W} height={H} fill="#0a0f17"/>
+        <line x1="30" y1={mid} x2={W-10} y2={mid} stroke="var(--border2)"/>
+        <text x="32" y={mid-4} fill="var(--muted)" fontSize="9">0° equator</text>
+        {[1,-1].map(s=><text key={s} x="2" y={yOf(s*maxD*0.8)} fill="var(--dim)" fontSize="9">{(s*maxD*0.8).toFixed(0)}°</text>)}
+        {eph.map((p,i)=><g key={i}><circle cx={xOf(i)} cy={yOf(p.dec)} r="5" fill={PCOLOR[p.name]}/><text x={xOf(i)} y={H-6} fill={PCOLOR[p.name]} fontSize="13" textAnchor="middle">{p.glyph}</text><text x={xOf(i)} y={yOf(p.dec)-9} fill="var(--muted)" fontSize="8" textAnchor="middle">{p.dec.toFixed(1)}</text></g>)}
+      </svg>
+    </div>
+    <div className="panel"><table><thead><tr><th className="l">Body</th><th>Declination</th><th>Hemisphere</th></tr></thead><tbody>
+      {eph.map((p,i)=><tr key={i}><td className="l"><span className="glyph" style={{color:PCOLOR[p.name]}}>{p.glyph}</span> {p.name}</td><td className={p.dec>=0?'pos':'neg'}>{p.dec>=0?'+':''}{p.dec.toFixed(3)}°</td><td className="mut">{p.dec>=0?'North':'South'}</td></tr>)}
+    </tbody></table></div>
+  </div>);
+}
+function PlanetLinesPanel({price,dt,ix}){
+  const [factor,setFactor]=useState(()=>+(price/360).toFixed(3));const [harm,setHarm]=useState(3);
+  useEffect(()=>setFactor(+(price/360).toFixed(3)),[ix]);
+  const lines=useMemo(()=>planetaryLines(dt,factor,harm),[dt,factor,harm]);
+  return(<div>
+    <h2 className="pg-head">Gann Planetary Lines</h2>
+    <p className="pg-desc">Gann converted planetary longitude into price using a degrees-to-price factor. Each planet's longitude (plus 360° harmonics) maps to a price line. Default factor = anchor price ÷ 360 (one full zodiac circle spans the anchor).</p>
+    <div className="panel"><div className="row">
+      <Field label="°→price factor"><Num value={factor} onChange={setFactor}/></Field>
+      <Field label="Harmonics"><select value={harm} onChange={e=>setHarm(+e.target.value)}>{[1,2,3,4,5].map(s=><option key={s} value={s}>{s}</option>)}</select></Field>
+      <div className="mut">1° = {fmtN(factor,3)} pts</div>
+    </div></div>
+    <div className="panel"><div className="scroll"><table><thead><tr><th className="l">Planet</th><th>Longitude</th>{Array.from({length:harm+1}).map((_,k)=><th key={k}>+{k}×360°</th>)}</tr></thead><tbody>
+      {lines.map((p,i)=><tr key={i}><td className="l"><span className="glyph" style={{color:PCOLOR[p.name]}}>{p.glyph}</span> {p.name}</td><td className="cyn">{p.lon.toFixed(2)}°</td>
+        {p.lines.map((l,k)=><td key={k}>{fmtN(l.price,ix.dec)}</td>)}</tr>)}
+    </tbody></table></div><div className="note">Lines nearest the anchor price ({fmtN(price,ix.dec)}) are the actionable support/resistance.</div></div>
+  </div>);
+}
+function Sq9PlanetPanel({price,dt,ix}){
+  const [turns,setTurns]=useState(1);
+  const data=useMemo(()=>sq9PlanetaryIntervals(price,dt,turns),[price,dt,turns]);
+  return(<div>
+    <h2 className="pg-head">Sq9 Planetary Intervals</h2>
+    <p className="pg-desc">Projects each planet's current longitude onto the Square of 9 around the anchor price — the price level whose Sq9 angle equals the planet's degree. This fuses astro timing with Gann price geometry.</p>
+    <div className="panel"><div className="row">
+      <Field label="Rotations ±"><select value={turns} onChange={e=>setTurns(+e.target.value)}>{[1,2,3].map(s=><option key={s} value={s}>{s}</option>)}</select></Field>
+      <div className="mut">Anchor <span className="pricebox">{fmtN(price,ix.dec)}</span></div>
+    </div></div>
+    <div className="panel"><div className="scroll"><table><thead><tr><th className="l">Planet</th><th>Longitude</th>{Array.from({length:turns*2+1}).map((_,i)=>{const t=i-turns;return<th key={i}>{t>0?'+':''}{t} turn</th>;})}</tr></thead><tbody>
+      {data.map((p,i)=><tr key={i}><td className="l"><span className="glyph" style={{color:PCOLOR[p.name]}}>{p.glyph}</span> {p.name}</td><td className="cyn">{p.lon.toFixed(2)}°</td>
+        {p.levels.map((l,k)=><td key={k} style={{color:l.turn===0?'var(--amb)':'inherit'}}>{fmtN(l.price,ix.dec)}</td>)}</tr>)}
+    </tbody></table></div><div className="note">The <span className="amb">0-turn</span> column is the Sq9 price aligned to each planet's longitude within the same rotation as the anchor.</div></div>
+  </div>);
+}
+function About(){
+  return(<div>
+    <h2 className="pg-head">About <span className="sub">· Gann &amp; Astro Terminal</span></h2>
+    <p className="pg-desc">A self-contained terminal implementing the full W.D. Gann tool set plus the core financial-astrology tools catalogued in the Optuma knowledge base, for six indices.</p>
+    <div className="panel"><h3>Tools Implemented</h3>
+      <table><tbody>
+        <tr><td className="l amb">Gann</td><td className="l">All 40 Optuma Gann tools — Square of 9 (calculator, wheel, static, dynamic, dates, intervals, Gann fan), Gann Fan/Angles (static + dynamic), Dynamic Gann Levels, Gann Box, Gann Squares, Hex Intervals, Wheel of 24, Divisions of 3rds/8ths (price + time), Measured/Single/High-Low/Zero degree lines &amp; fans, Seven Times the Base, Triple Octave (price + time), Pyrapoint, Pattern of Vibration, Mass Pressure, Number Searcher, Day Count/Cycles, Time-Price Labels/Measure, Square Range &amp; Marker family, Top/Bottom, Overlay, Pattern Matcher</td></tr>
+        <tr><td className="l vio">Astro</td><td className="l">Ephemeris, Planetary Aspects (+grid), Moon Phases, Planetary Retrograde, Declination, Gann Planetary Lines, Square-of-9 Planetary Intervals</td></tr>
+        <tr><td className="l cyn">Charts</td><td className="l">The Square of Nine, The Square of Four, The Hexagon Chart, The Wheel of 24</td></tr>
+      </tbody></table>
+    </div>
+    <div className="panel"><h3>Indices</h3><table><thead><tr><th className="l">Code</th><th className="l">Index</th><th className="l">Region</th><th className="l">Yahoo symbol</th></tr></thead><tbody>
+      {Object.entries(INDICES).map(([k,v])=><tr key={k}><td className="l cyn">{k}</td><td className="l">{v.name}</td><td className="l mut">{v.region}</td><td className="l mut">{v.yahoo}</td></tr>)}
+    </tbody></table></div>
+    <div className="panel"><h3>Live Data (scrapling)</h3>
+      <p className="mut" style={{margin:'0 0 8px'}}>Prices can be entered manually, or pulled live by running the included <span className="kbd">fetch_data.py</span> (uses the scrapling framework) which writes <span className="kbd">data.json</span> next to this file. Then click <b>Load data.json</b> in the top bar, or serve the folder so it auto-loads.</p>
+      <pre style={{background:'var(--bg2)',padding:'10px',borderRadius:6,overflow:'auto',color:'var(--grn)',fontSize:11,border:'1px solid var(--border)'}}>{`pip install "scrapling[fetchers]"
+scrapling install
+python fetch_data.py        # writes data.json
+# then open this file (served) or use "Load data.json"`}</pre>
+    </div>
+    <div className="panel"><h3>Method &amp; Accuracy</h3>
+      <p className="mut" style={{margin:0}}>Planetary positions use Paul Schlyter's compact orbital-element method (geocentric ecliptic longitudes ≈1–2′ for the Sun and planets, a few arc-minutes for the Moon). Verified against equinox/solstice Sun longitudes and inner-planet elongation limits. For educational/analytical use — markets carry risk and no method guarantees outcomes.</p>
+    </div>
+  </div>);
+}
+
+/* ===================== EXTENDED GANN PANELS (batch 1) ===================== */
+function WithBanner({text,children}){return(<div><div className="panel" style={{borderColor:'var(--amb)',padding:'8px 14px',marginBottom:12}}><span className="amb">▸ {text}</span></div>{children}</div>);}
+
+function RangeDivPanel({price,ix,fracs,title,sub,blurb}){
+  const [hi,setHi]=useState(Math.round(price*1.08));const [lo,setLo]=useState(Math.round(price*0.92));
+  useEffect(()=>{setHi(Math.round(price*1.08));setLo(Math.round(price*0.92));},[price]);
+  const rows=useMemo(()=>priceDivision(hi,lo,fracs),[hi,lo,fracs]);
+  return(<div>
+    <h2 className="pg-head">{title} <span className="sub">{sub}</span></h2>
+    <p className="pg-desc">{blurb}</p>
+    <div className="panel"><div className="row">
+      <Field label="Swing high"><Num value={hi} onChange={setHi}/></Field>
+      <Field label="Swing low"><Num value={lo} onChange={setLo}/></Field>
+      <div className="mut">Range = {fmtN(hi-lo,ix.dec)}</div>
+    </div></div>
+    <div className="panel"><table><thead><tr><th className="l">Division</th><th>%</th><th>Price</th></tr></thead><tbody>
+      {rows.slice().reverse().map((l,i)=><tr key={i}><td className="l"><span className={l.frac===0.5?'amb':'cyn'}>{l.label}</span></td><td className="mut">{(l.frac*100).toFixed(1)}</td><td>{fmtN(l.price,ix.dec)}</td></tr>)}
+    </tbody></table></div>
+  </div>);
+}
+function Div3Panel(p){return <RangeDivPanel {...p} fracs={THIRDS} title="Division of 3rds" sub="price" blurb="Divides a swing (high→low) into thirds. The 1/3 and 2/3 levels are primary Gann retracement zones."/>;}
+function Div8Panel(p){return <RangeDivPanel {...p} fracs={EIGHTHS} title="Division of 8ths" sub="price" blurb="Divides a swing into eighths. 3/8–5/8 is the balance band; 4/8 (50%) is the key pivot."/>;}
+
+function DynLevelsPanel({price,ix}){
+  const root0=Math.sqrt(price);const out=[];
+  for(let n=-6;n<=6;n++){const v=Math.pow(root0+ (n*90)/180,2);out.push({n,price:v,deg:n*90});}
+  return(<div>
+    <h2 className="pg-head">Dynamic Gann Levels</h2>
+    <p className="pg-desc">Horizontal support/resistance from the anchor's square root, stepped by 90° (cardinal) rotations — each step is a full quarter-turn of the Square of 9.</p>
+    <div className="panel"><table><thead><tr><th>Rotation</th><th>Price</th><th>Δ%</th><th>Role</th></tr></thead><tbody>
+      {out.map((l,i)=><tr key={i}><td>{l.deg>0?'+':''}{l.deg}°</td><td style={{color:l.n===0?'var(--grn)':'inherit'}}>{fmtN(l.price,ix.dec)}</td><td className={l.n>0?'amb':l.n<0?'pos':'mut'}>{((l.price-price)/price*100).toFixed(2)}%</td><td>{l.n>0?<span className="tag res">RES</span>:l.n<0?<span className="tag sup">SUP</span>:<span className="tag card">ANCHOR</span>}</td></tr>)}
+    </tbody></table></div>
+  </div>);
+}
+function HexIntPanel({price,ix}){
+  const hex=useMemo(()=>hexCentered(price,6),[price]);
+  const rings=useMemo(()=>hexRing(8),[]);
+  return(<div>
+    <h2 className="pg-head">Dynamic Hex Intervals <span className="sub">Hexagon</span></h2>
+    <p className="pg-desc">The Hexagon arranges numbers in rings of 6. Centered-hexagonal numbers C(k)=3k²−3k+1 nearest the anchor act as support/resistance, analogous to the Square of 9's spokes.</p>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+      <div className="panel"><h3>Hex Levels around {fmtN(price,ix.dec)}</h3><table><thead><tr><th>Ring k</th><th>Type</th><th>Value</th></tr></thead><tbody>
+        {hex.resistance.slice(0,5).slice().reverse().map((l,i)=><tr key={'r'+i}><td>{l.k}</td><td><span className="tag res">R</span></td><td className="amb">{fmtN(l.val,0)}</td></tr>)}
+        <tr><td className="cyn">{hex.k}</td><td><span className="tag card">≈ANCHOR</span></td><td className="cyn">{fmtN(hex.center,0)}</td></tr>
+        {hex.support.slice(0,5).map((l,i)=><tr key={'s'+i}><td>{l.k}</td><td><span className="tag sup">S</span></td><td className="pos">{fmtN(l.val,0)}</td></tr>)}
+      </tbody></table></div>
+      <div className="panel"><h3>Hexagon Ring Structure</h3><table><thead><tr><th>Ring</th><th>Cells</th><th>Corner #</th></tr></thead><tbody>
+        {rings.map((r,i)=><tr key={i}><td>{r.ring}</td><td className="mut">{r.count}</td><td>{fmtN(r.corner,0)}</td></tr>)}
+      </tbody></table><div className="note">Each ring adds 6×(k−1) cells; corner = centered hexagonal number.</div></div>
+    </div>
+  </div>);
+}
+function GSquaresPanel({price,dt,ix}){
+  const [N,setN]=useState(144);const [scale,setScale]=useState(ix.scale);
+  useEffect(()=>setScale(ix.scale),[ix]);
+  const sq=useMemo(()=>gannSquares(price,N,scale,dt),[price,N,scale,dt]);
+  return(<div>
+    <h2 className="pg-head">Gann Squares <span className="sub">Square of {N}</span></h2>
+    <p className="pg-desc">Overlays a square of N units of price and N bars of time, divided into eighths. Gann favoured the squares of 52, 90, 144 and 360. Diagonals and 1/2 lines flag price/time balance points.</p>
+    <div className="panel"><div className="row">
+      <Field label="Square size N"><select value={N} onChange={e=>setN(+e.target.value)}>{[52,90,120,144,180,360].map(s=><option key={s} value={s}>{s}</option>)}</select></Field>
+      <Field label="Price scale"><Num value={scale} onChange={setScale}/></Field>
+      <div className="mut">Price side = {fmtN(N*scale,ix.dec)} · Time side = {N} bars</div>
+    </div></div>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+      <div className="panel"><h3>Price Divisions</h3><table><thead><tr><th className="l">1/8</th><th>Up</th><th>Down</th></tr></thead><tbody>
+        {sq.price.map((l,i)=><tr key={i}><td className="l"><span className={l.frac===0.5?'amb':'cyn'}>{l.label}</span></td><td>{fmtN(l.up,ix.dec)}</td><td>{fmtN(l.dn,ix.dec)}</td></tr>)}
+      </tbody></table></div>
+      <div className="panel"><h3>Time Divisions</h3><table><thead><tr><th className="l">1/8</th><th>Bar</th><th className="l">Date</th></tr></thead><tbody>
+        {sq.time.map((l,i)=><tr key={i}><td className="l"><span className={l.frac===0.5?'amb':'cyn'}>{l.label}</span></td><td>{l.bar}</td><td className="l">{fmtDate(l.date)}</td></tr>)}
+      </tbody></table></div>
+    </div>
+  </div>);
+}
+function Sq9FanPanel({price,ix}){
+  const fan=useMemo(()=>sq9GannFan(price),[price]);
+  const prices=fan.map(f=>f.price).concat([price]);
+  const pMin=Math.min(...prices),pMax=Math.max(...prices),pad=(pMax-pMin)*0.1||1;
+  const W=560,H=300;const yOf=p=>H-((p-(pMin-pad))/((pMax+pad)-(pMin-pad)))*H;
+  return(<div>
+    <h2 className="pg-head">Square of 9 Gann Fan</h2>
+    <p className="pg-desc">A fan whose angles are taken from the Square of 9 rotations (45° increments). Each ray is a price level projected from the anchor at that Sq9 angle.</p>
+    <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:14,alignItems:'start'}}>
+      <div className="panel"><h3>Sq9 Angle Levels</h3><table><thead><tr><th>Angle</th><th>Price</th><th>Δ%</th></tr></thead><tbody>
+        {fan.map((f,i)=><tr key={i}><td className={f.angle%90===0?'amb':''}>{f.angle}°</td><td>{fmtN(f.price,ix.dec)}</td><td className="mut">{((f.price-price)/price*100).toFixed(2)}%</td></tr>)}
+      </tbody></table></div>
+      <div className="panel"><h3>Fan</h3><svg viewBox={`0 0 ${W+50} ${H}`} width="100%" style={{maxWidth:(W+50)+'px'}}>
+        <rect x="0" y="0" width={W+50} height={H} fill="#0a0f17"/>
+        {fan.map((f,i)=>{const y=yOf(f.price);return<g key={i}><line x1="8" y1={yOf(price)} x2={W} y2={y} stroke={f.angle%90===0?'var(--amb)':'var(--border2)'} strokeWidth={f.angle%90===0?2:1}/><text x={W+3} y={y+4} fill="var(--muted)" fontSize="9">{f.angle}°</text></g>;})}
+        <circle cx="8" cy={yOf(price)} r="4" fill="var(--grn)"/>
+      </svg></div>
+    </div>
+  </div>);
+}
+function Sq9IntPanel({price,ix}){
+  const iv=useMemo(()=>sq9Intervals(price,6),[price]);
+  return(<div>
+    <h2 className="pg-head">Square of 9 Intervals</h2>
+    <p className="pg-desc">The price distance between consecutive full rotations of the Square of 9 (each 360° adds 2 to √price). Intervals widen as price rises — useful for gauging the "size" of each Gann cycle.</p>
+    <div className="panel"><table><thead><tr><th>Turn</th><th>Cardinal Price</th><th>Interval to prev</th></tr></thead><tbody>
+      {iv.map((l,i)=><tr key={i}><td>{l.turn}</td><td>{fmtN(l.price,ix.dec)}</td><td className="cyn">{l.interval==null?'—':'+'+fmtN(l.interval,ix.dec)}</td></tr>)}
+    </tbody></table></div>
+  </div>);
+}
+function MeasDegPanel({price,ix}){
+  const [deg,setDeg]=useState(90);
+  const rows=useMemo(()=>degreeLine(price,[deg,deg*2,deg*3,-deg,-deg*2]),[price,deg]);
+  return(<div>
+    <h2 className="pg-head">Gann Measured Degree Line</h2>
+    <p className="pg-desc">Projects a price level a chosen number of degrees from the anchor on the Square of 9 (180° = +1 to √price). Enter the degree measure to read the target price and its multiples.</p>
+    <div className="panel"><div className="row"><Field label="Degrees"><Num value={deg} onChange={setDeg} w={90}/></Field><div className="mut">Anchor {fmtN(price,ix.dec)} · √P {Math.sqrt(price).toFixed(3)}</div></div></div>
+    <div className="panel"><table><thead><tr><th>Degrees</th><th>Turns</th><th>Price</th><th>Δ%</th></tr></thead><tbody>
+      {rows.map((l,i)=><tr key={i}><td>{l.deg>0?'+':''}{l.deg}°</td><td className="mut">{l.turns.toFixed(2)}</td><td>{fmtN(l.price,ix.dec)}</td><td className={l.deg>=0?'amb':'pos'}>{((l.price-price)/price*100).toFixed(2)}%</td></tr>)}
+    </tbody></table></div>
+  </div>);
+}
+function SingleDegPanel({price,ix}){
+  const degs=[];for(let d=-10;d<=10;d++)degs.push(d);
+  const rows=useMemo(()=>degreeLine(price,degs),[price]);
+  return(<div>
+    <h2 className="pg-head">Gann Single Degree Line</h2>
+    <p className="pg-desc">Price levels at single-degree increments around the anchor (±10°). Fine-grained Square-of-9 support/resistance for tight ranges and intraday work.</p>
+    <div className="panel"><div className="scroll"><table><thead><tr><th>Degree</th><th>Price</th><th>Δ%</th></tr></thead><tbody>
+      {rows.map((l,i)=><tr key={i}><td className={l.deg===0?'amb':''}>{l.deg>0?'+':''}{l.deg}°</td><td style={{color:l.deg===0?'var(--grn)':'inherit'}}>{fmtN(l.price,ix.dec)}</td><td className="mut">{((l.price-price)/price*100).toFixed(3)}%</td></tr>)}
+    </tbody></table></div></div>
+  </div>);
+}
+function HiLoDegPanel({price,ix}){
+  const [hi,setHi]=useState(Math.round(price*1.05));const [lo,setLo]=useState(Math.round(price*0.95));
+  useEffect(()=>{setHi(Math.round(price*1.05));setLo(Math.round(price*0.95));},[price]);
+  const r=useMemo(()=>highLowDegrees(hi,lo),[hi,lo]);
+  return(<div>
+    <h2 className="pg-head">High/Low Degree Angles</h2>
+    <p className="pg-desc">Measures the angular distance between a high and a low on the Square of 9, then projects the next levels by the same degree span — a Gann technique for equal-swing targets.</p>
+    <div className="panel"><div className="row">
+      <Field label="High"><Num value={hi} onChange={setHi}/></Field><Field label="Low"><Num value={lo} onChange={setLo}/></Field>
+    </div></div>
+    <div className="cards">
+      <div className="card"><h4>Angular Distance</h4><div className="big amb">{r.deg.toFixed(1)}°</div><div className="mut">{r.turns.toFixed(2)} rotations</div></div>
+      <div className="card"><h4>Projection Up</h4><div className="big">{fmtN(r.projUp,ix.dec)}</div></div>
+      <div className="card"><h4>Projection Down</h4><div className="big">{fmtN(r.projDn,ix.dec)}</div></div>
+      <div className="card"><h4>√ Range</h4><div className="big cyn">{r.rangeRoot.toFixed(3)}</div></div>
+    </div>
+  </div>);
+}
+function ZeroDegPanel({price,ix}){
+  const sq=useMemo(()=>zeroDegreeSquares(14),[]);
+  return(<div>
+    <h2 className="pg-head">Zero Degree Angles</h2>
+    <p className="pg-desc">Angles measured from zero — the natural squares (1, 4, 9, 16 …). These perfect squares sit on the 0°/cardinal axis of the Square of 9 and are long-term structural levels.</p>
+    <div className="panel"><div className="scroll"><table><thead><tr><th>n</th><th>Square n²</th><th>Cumulative °</th><th>vs Anchor</th></tr></thead><tbody>
+      {sq.map((l,i)=><tr key={i}><td>{l.n}</td><td className={Math.abs(l.square-price)/price<0.05?'amb':''}>{fmtN(l.square,0)}</td><td className="mut">{l.deg}°</td><td className="mut">{((l.square-price)/price*100).toFixed(1)}%</td></tr>)}
+    </tbody></table></div><div className="note">Highlighted = within 5% of the anchor ({fmtN(price,ix.dec)}).</div></div>
+  </div>);
+}
+function ZeroPricePanel({ix}){
+  const [scale,setScale]=useState(ix.scale);const [bars,setBars]=useState(40);
+  useEffect(()=>setScale(ix.scale),[ix]);
+  const fan=useMemo(()=>zeroPriceFan(scale,bars),[scale,bars]);
+  return(<div>
+    <h2 className="pg-head">Zero Price Fan</h2>
+    <p className="pg-desc">Gann fan rays originating from a price of zero — pure price-per-time ratios. Useful for projecting from an all-time origin or for ratio analysis independent of an anchor level.</p>
+    <div className="panel"><div className="row">
+      <Field label="Scale (price/bar)"><Num value={scale} onChange={setScale}/></Field><Field label="Bars"><Num value={bars} onChange={setBars} w={80}/></Field>
+    </div></div>
+    <div className="panel"><table><thead><tr><th>Angle</th><th>Slope/bar</th><th>Price @ {bars} bars</th></tr></thead><tbody>
+      {fan.map((f,i)=><tr key={i}><td className={f.label==='1x1'?'amb':''}>{f.label==='1x1'?'★ ':''}{f.label}</td><td>{fmtN(f.slope,2)}</td><td>{fmtN(f.price,ix.dec)}</td></tr>)}
+    </tbody></table></div>
+  </div>);
+}
+
+/* ===================== EXTENDED GANN PANELS (batch 2) + CHARTS ===================== */
+function SevenTimesPanel({price,ix}){
+  const [base,setBase]=useState(Math.round(price*0.5));useEffect(()=>setBase(Math.round(price*0.5)),[price]);
+  const rows=useMemo(()=>sevenTimesBase(base),[base]);
+  return(<div>
+    <h2 className="pg-head">Seven Times The Base</h2>
+    <p className="pg-desc">Gann projected major tops as multiples of a significant base (low). The 2×, 3½× and 7× levels are the classic long-term targets from the base value.</p>
+    <div className="panel"><div className="row"><Field label="Base value"><Num value={base} onChange={setBase}/></Field><div className="mut">Anchor {fmtN(price,ix.dec)}</div></div></div>
+    <div className="panel"><table><thead><tr><th>Multiple</th><th>Price</th><th>vs Anchor</th></tr></thead><tbody>
+      {rows.map((l,i)=><tr key={i}><td className={l.key?'amb':''}>{l.key?'★ ':''}{l.mult}×</td><td>{fmtN(l.price,ix.dec)}</td><td className="mut">{((l.price-price)/price*100).toFixed(1)}%</td></tr>)}
+    </tbody></table></div>
+  </div>);
+}
+function TriOctPanel({price,ix}){
+  const [base,setBase]=useState(Math.round(price*0.25));useEffect(()=>setBase(Math.round(price*0.25)),[price]);
+  const rows=useMemo(()=>tripleOctave(base),[base]);
+  return(<div>
+    <h2 className="pg-head">Triple Octave Support &amp; Resistance</h2>
+    <p className="pg-desc">Treats price like a musical scale: each octave doubles the base (×2, ×4, ×8), with 1/3 and 2/3 subdivisions inside each octave. Octave boundaries are strong long-term S/R.</p>
+    <div className="panel"><div className="row"><Field label="Base"><Num value={base} onChange={setBase}/></Field><div className="mut">Anchor {fmtN(price,ix.dec)}</div></div></div>
+    <div className="panel"><table><thead><tr><th>Octave</th><th>Division</th><th>Price</th></tr></thead><tbody>
+      {rows.map((l,i)=><tr key={i}><td>{l.oct}</td><td>{l.octave?<span className="tag card">OCTAVE</span>:<span className="mut">{(l.frac*100).toFixed(0)}%</span>}</td><td className={l.octave?'amb':''}>{fmtN(l.price,ix.dec)}</td></tr>)}
+    </tbody></table></div>
+  </div>);
+}
+function TriOctTimePanel({dt}){
+  const [base,setBase]=useState(45);
+  const rows=useMemo(()=>tripleOctaveTime(dt,base),[dt,base]);
+  return(<div>
+    <h2 className="pg-head">Triple Octave Time S/R Lines</h2>
+    <p className="pg-desc">The octave principle applied to time: a base day-count doubled across three octaves projects time-turning windows from the anchor date.</p>
+    <div className="panel"><div className="row"><Field label="Base days"><Num value={base} onChange={setBase} w={90}/></Field><div className="mut">Anchor {fmtDate(dt)}</div></div></div>
+    <div className="panel"><table><thead><tr><th>Octave</th><th>+Days</th><th className="l">Date</th><th>Day</th></tr></thead><tbody>
+      {rows.map((l,i)=><tr key={i}><td>{l.oct} (×{Math.pow(2,l.oct)})</td><td className="amb">{l.days}</td><td className="l">{fmtDate(l.date)}</td><td className="mut">{fmtWk(l.date)}</td></tr>)}
+    </tbody></table></div>
+  </div>);
+}
+function TimeRangeDiv({dt,fracs,title,blurb}){
+  const [d1,setD1]=useState(()=>new Date(dt.getTime()-120*86400000).toISOString().slice(0,10));
+  const [d2,setD2]=useState(()=>dt.toISOString().slice(0,10));
+  const t1=new Date(d1+'T12:00:00Z').getTime(),t2=new Date(d2+'T12:00:00Z').getTime();
+  const rows=fracs.map(f=>({frac:f,label:fracLabel(f),date:new Date(t1+(t2-t1)*f)}));
+  return(<div>
+    <h2 className="pg-head">{title}</h2>
+    <p className="pg-desc">{blurb}</p>
+    <div className="panel"><div className="row">
+      <Field label="From"><input type="date" value={d1} onChange={e=>setD1(e.target.value)}/></Field>
+      <Field label="To"><input type="date" value={d2} onChange={e=>setD2(e.target.value)}/></Field>
+      <div className="mut">Span {((t2-t1)/86400000).toFixed(0)} days</div>
+    </div></div>
+    <div className="panel"><table><thead><tr><th className="l">Division</th><th className="l">Date</th><th>Day</th></tr></thead><tbody>
+      {rows.map((l,i)=><tr key={i}><td className="l"><span className={l.frac===0.5?'amb':'cyn'}>{l.label}</span></td><td className="l">{fmtDate(l.date)}</td><td className="mut">{fmtWk(l.date)}</td></tr>)}
+    </tbody></table></div>
+  </div>);
+}
+function TimeDiv3Panel(p){return <TimeRangeDiv {...p} fracs={THIRDS} title="Time Division of 3rds" blurb="Divides a time span between two pivots into thirds — 1/3 and 2/3 mark intermediate turning dates."/>;}
+function TimeDiv8Panel(p){return <TimeRangeDiv {...p} fracs={EIGHTHS} title="Time Division of 8ths" blurb="Divides a time span into eighths; the half-span date is the key time pivot."/>;}
+function TimePriceLabelsPanel({price,dt,ix}){
+  const cyc=useMemo(()=>gannTimeCycles(dt,[45,90,144,180,360]),[dt]);
+  const sr=useMemo(()=>sq9NearestSR(price,90),[price]);
+  return(<div>
+    <h2 className="pg-head">Time &amp; Price Labels</h2>
+    <p className="pg-desc">Combined Gann labels: the key forward time-cycle dates alongside the cardinal Square-of-9 price levels — the coordinates Gann would annotate on a chart.</p>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+      <div className="panel"><h3>Time Labels</h3><table><thead><tr><th>+Days</th><th className="l">Date</th></tr></thead><tbody>
+        {cyc.map((c,i)=><tr key={i}><td className="amb">{c.days}</td><td className="l">{fmtDate(c.date)}</td></tr>)}
+      </tbody></table></div>
+      <div className="panel"><h3>Price Labels</h3><table><thead><tr><th>Role</th><th>Price</th></tr></thead><tbody>
+        {sr.resistance.map((v,i)=><tr key={'r'+i}><td><span className="tag res">R{i+1}</span></td><td>{fmtN(v,ix.dec)}</td></tr>)}
+        {sr.support.map((v,i)=><tr key={'s'+i}><td><span className="tag sup">S{i+1}</span></td><td>{fmtN(v,ix.dec)}</td></tr>)}
+      </tbody></table></div>
+    </div>
+  </div>);
+}
+function TimePriceMeasurePanel({price,ix}){
+  const [p1,setP1]=useState(Math.round(price*0.96));const [p2,setP2]=useState(Math.round(price*1.0));
+  const [bars,setBars]=useState(40);const [scale,setScale]=useState(ix.scale);
+  useEffect(()=>{setP1(Math.round(price*0.96));setP2(Math.round(price));setScale(ix.scale);},[price,ix]);
+  const m=useMemo(()=>timePriceMeasure(p1,p2,0,bars,scale),[p1,p2,bars,scale]);
+  return(<div>
+    <h2 className="pg-head">Time Price Measure</h2>
+    <p className="pg-desc">Measures a move in both price and time and reports the Gann angle. When price units equal time units (1×1) the angle is 45° — the move is "squared".</p>
+    <div className="panel"><div className="row">
+      <Field label="Price from"><Num value={p1} onChange={setP1}/></Field><Field label="Price to"><Num value={p2} onChange={setP2}/></Field>
+      <Field label="Bars"><Num value={bars} onChange={setBars} w={80}/></Field><Field label="Scale (price/bar)"><Num value={scale} onChange={setScale}/></Field>
+    </div></div>
+    <div className="cards">
+      <div className="card"><h4>Price Δ</h4><div className="big">{fmtN(m.dp,ix.dec)}</div></div>
+      <div className="card"><h4>Time Δ</h4><div className="big">{m.dt} bars</div></div>
+      <div className="card"><h4>Gann Angle</h4><div className="big amb">{m.angle.toFixed(1)}°</div></div>
+      <div className="card"><h4>Squared?</h4><div className="big" style={{color:m.squared?'var(--grn)':'var(--muted)'}}>{m.squared?'YES · 1×1':'no'}</div><div className="mut">{fmtN(m.ppb,2)} price/bar</div></div>
+    </div>
+  </div>);
+}
+function MarkerBase({price,dt,ix,title,blurb,scaleDefault}){
+  const [scale,setScale]=useState(scaleDefault||ix.scale);
+  useEffect(()=>setScale(scaleDefault||ix.scale),[ix]);
+  const rows=useMemo(()=>squaringPoints(price,dt,scale,12),[price,dt,scale]);
+  return(<div>
+    <h2 className="pg-head">{title}</h2>
+    <p className="pg-desc">{blurb}</p>
+    <div className="panel"><div className="row"><Field label="Price/bar scale"><Num value={scale} onChange={setScale}/></Field><div className="mut">Anchor {fmtN(price,ix.dec)} on {fmtDate(dt)}</div></div></div>
+    <div className="panel"><div className="scroll"><table><thead><tr><th>Bars</th><th className="l">Square Date</th><th>Up target</th><th>Down target</th></tr></thead><tbody>
+      {rows.map((r,i)=><tr key={i}><td>{r.bars}</td><td className="l">{fmtDate(r.date)}</td><td className="amb">{fmtN(r.priceUp,ix.dec)}</td><td className="pos">{fmtN(r.priceDown,ix.dec)}</td></tr>)}
+    </tbody></table></div><div className="note">A "square" occurs when elapsed bars × scale equals the price move (a 1×1 / 45° relationship).</div></div>
+  </div>);
+}
+function SqMarkersPanel(p){return <MarkerBase {...p} title="Gann Square Markers" blurb="Marks the price/time coordinates where the move squares with elapsed time from the anchor."/>;}
+function SqSwingPanel(p){return <MarkerBase {...p} title="Gann Square Swing Markers" blurb="Projects swing markers where each successive equal price move squares the equal time count."/>;}
+function SqRangeMarkerPanel(p){return <MarkerBase {...p} title="Gann Square Range Marker" blurb="Markers placed at each multiple of the squared range as it unfolds over time."/>;}
+function SqTopBotPanel({price,dt,ix}){
+  const days=Math.round(Math.sqrt(price));const days2=Math.round(price/ (ix.scale||1));
+  const d1=new Date(dt.getTime()+days*86400000),d2=new Date(dt.getTime()+days2*86400000);
+  return(<div>
+    <h2 className="pg-head">Gann Square Top/Bottom</h2>
+    <p className="pg-desc">"Squaring" a top or bottom converts its price into a count of time. Two common conversions from the anchor are shown: √price calendar-days, and price ÷ scale bars.</p>
+    <div className="cards">
+      <div className="card"><h4>√Price days</h4><div className="big amb">{days}</div><div className="mut">→ {fmtDate(d1)}</div></div>
+      <div className="card"><h4>Price ÷ scale bars</h4><div className="big amb">{days2}</div><div className="mut">→ {fmtDate(d2)}</div></div>
+      <div className="card"><h4>Anchor</h4><div className="big">{fmtN(price,ix.dec)}</div><div className="mut">{fmtDate(dt)}</div></div>
+    </div>
+  </div>);
+}
+function SqRangePanel({price,ix}){
+  const [hi,setHi]=useState(Math.round(price*1.05));const [lo,setLo]=useState(Math.round(price*0.95));const [scale,setScale]=useState(ix.scale);
+  useEffect(()=>{setHi(Math.round(price*1.05));setLo(Math.round(price*0.95));setScale(ix.scale);},[price,ix]);
+  const R=hi-lo;const bars=Math.round(R/scale);
+  const levels=[];for(let n=-3;n<=3;n++)levels.push({n,price:price+n*R});
+  return(<div>
+    <h2 className="pg-head">Gann Square Range</h2>
+    <p className="pg-desc">Squares a price range against time: a range of R points takes ~R/scale bars to "square". Projects price levels at multiples of the range above and below the anchor.</p>
+    <div className="panel"><div className="row"><Field label="High"><Num value={hi} onChange={setHi}/></Field><Field label="Low"><Num value={lo} onChange={setLo}/></Field><Field label="Scale"><Num value={scale} onChange={setScale}/></Field></div>
+    <div className="mut">Range R = {fmtN(R,ix.dec)} · squares in ≈ {bars} bars · √R = {Math.sqrt(Math.abs(R)).toFixed(2)}</div></div>
+    <div className="panel"><table><thead><tr><th>× Range</th><th>Price level</th></tr></thead><tbody>
+      {levels.map((l,i)=><tr key={i}><td className={l.n===0?'amb':''}>{l.n>0?'+':''}{l.n}R</td><td style={{color:l.n===0?'var(--grn)':'inherit'}}>{fmtN(l.price,ix.dec)}</td></tr>)}
+    </tbody></table></div>
+  </div>);
+}
+function SqRangeAnglePanel({price,ix}){
+  const [hi,setHi]=useState(Math.round(price*1.05));const [lo,setLo]=useState(Math.round(price*0.95));const [bars,setBars]=useState(40);const [scale,setScale]=useState(ix.scale);
+  useEffect(()=>{setHi(Math.round(price*1.05));setLo(Math.round(price*0.95));setScale(ix.scale);},[price,ix]);
+  const m=useMemo(()=>timePriceMeasure(lo,hi,0,bars,scale),[hi,lo,bars,scale]);
+  return(<div>
+    <h2 className="pg-head">Gann Square Range Angle</h2>
+    <p className="pg-desc">The angle a price range subtends over a chosen number of bars. 45° means the range squares the time exactly (1×1).</p>
+    <div className="panel"><div className="row"><Field label="High"><Num value={hi} onChange={setHi}/></Field><Field label="Low"><Num value={lo} onChange={setLo}/></Field><Field label="Bars"><Num value={bars} onChange={setBars} w={80}/></Field><Field label="Scale"><Num value={scale} onChange={setScale}/></Field></div></div>
+    <div className="cards">
+      <div className="card"><h4>Range</h4><div className="big">{fmtN(hi-lo,ix.dec)}</div></div>
+      <div className="card"><h4>Angle</h4><div className="big amb">{m.angle.toFixed(1)}°</div></div>
+      <div className="card"><h4>Squared?</h4><div className="big" style={{color:m.squared?'var(--grn)':'var(--muted)'}}>{m.squared?'1×1':'no'}</div></div>
+    </div>
+  </div>);
+}
+function VibrationPanel({price,ix}){
+  const [rate,setRate]=useState(Math.max(1,Math.round(price*0.01)));
+  useEffect(()=>setRate(Math.max(1,Math.round(price*0.01))),[price]);
+  const rows=useMemo(()=>vibration(price,rate,8),[price,rate]);
+  return(<div>
+    <h2 className="pg-head">Gann's Pattern of Vibration</h2>
+    <p className="pg-desc">Gann held that each market vibrates at its own rate. Enter the vibration rate (points per step) to project the harmonic support/resistance grid above and below the anchor.</p>
+    <div className="panel"><div className="row"><Field label="Vibration rate"><Num value={rate} onChange={setRate}/></Field><div className="mut">Anchor {fmtN(price,ix.dec)}</div></div></div>
+    <div className="panel"><div className="scroll"><table><thead><tr><th>Step</th><th>Price</th><th>Harmonic</th></tr></thead><tbody>
+      {rows.map((l,i)=><tr key={i}><td className={l.n===0?'amb':''}>{l.n>0?'+':''}{l.n}</td><td style={{color:l.n===0?'var(--grn)':'inherit'}}>{fmtN(l.price,ix.dec)}</td><td className="mut">{l.harmonic?'even':'odd'}</td></tr>)}
+    </tbody></table></div></div>
+  </div>);
+}
+function NumSearchPanel({price}){
+  const [n,setN]=useState(Math.round(price));
+  useEffect(()=>setN(Math.round(price)),[price]);
+  const r=useMemo(()=>numberSearch(n||1),[n]);
+  return(<div>
+    <h2 className="pg-head">Number Searcher</h2>
+    <p className="pg-desc">Decomposes any number into its Gann relationships: square root, square, nearest perfect squares, Square-of-9 angle, factors and harmonics.</p>
+    <div className="panel"><div className="row"><Field label="Number"><Num value={n} onChange={setN}/></Field></div></div>
+    <div className="cards">
+      <div className="card"><h4>√n</h4><div className="big cyn">{r.root.toFixed(4)}</div><div className="mut">{r.isSquare?'perfect square':'not a square'}</div></div>
+      <div className="card"><h4>Nearest squares</h4><div className="big" style={{fontSize:'15px'}}>{fmtN(r.nearestLowerSquare,0)} / {fmtN(r.nearestUpperSquare,0)}</div></div>
+      <div className="card"><h4>Sq9 angle</h4><div className="big amb">{r.sq9deg.toFixed(1)}°</div></div>
+      <div className="card"><h4>n²</h4><div className="big" style={{fontSize:'15px'}}>{fmtN(r.sq,0)}</div></div>
+    </div>
+    <div className="panel" style={{marginTop:14}}><h3>Harmonics</h3><table><tbody>
+      {r.harmonics.map((h,i)=><tr key={i}><td className="l mut">{h[0]}</td><td>{fmtN(h[1],2)}</td></tr>)}
+    </tbody></table></div>
+    <div className="panel"><h3>Factors ({r.factors.length})</h3><div style={{color:'var(--cyn)'}}>{r.factors.join(' · ')}</div></div>
+  </div>);
+}
+function PyrapointPanel({price,ix}){
+  const rows=useMemo(()=>pyrapoint(price),[price]);
+  return(<div>
+    <h2 className="pg-head">Pyrapoint</h2>
+    <p className="pg-desc">Don Hall's Pyrapoint method works on whole-number steps of the square root: each ±1 to √price is a price "wall" 360° away. Levels above/below the anchor act as support/resistance.</p>
+    <div className="panel"><table><thead><tr><th>√ Step</th><th>Degrees</th><th>Price</th><th>Δ%</th></tr></thead><tbody>
+      {rows.map((l,i)=><tr key={i}><td className={l.step===0?'amb':''}>{l.step>0?'+':''}{l.step}</td><td className="mut">{l.deg}°</td><td style={{color:l.step===0?'var(--grn)':'inherit'}}>{fmtN(l.price,ix.dec)}</td><td className="mut">{((l.price-price)/price*100).toFixed(2)}%</td></tr>)}
+    </tbody></table></div>
+  </div>);
+}
+function MassPressurePanel({dt}){
+  const year=dt.getUTCFullYear();
+  const data=useMemo(()=>massPressure(year),[year]);
+  const W=680,H=240,mid=H/2;const xs=(W-40)/(data.length-1);
+  const yOf=v=>mid-v*40;
+  const pts=data.map((d,i)=>`${20+i*xs},${yOf(d.value)}`).join(' ');
+  const todayDay=Math.floor((dt-Date.UTC(year,0,1))/86400000);
+  return(<div>
+    <h2 className="pg-head">Gann Mass Pressure <span className="sub">seasonal model</span></h2>
+    <p className="pg-desc">A simplified seasonal pressure curve (sum of annual harmonics) for {year}. Peaks/troughs suggest seasonal turning windows. Note: this is an approximation — Gann's original Mass Pressure combined many years of historical data.</p>
+    <div className="panel"><svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{maxWidth:W+'px'}}>
+      <rect x="0" y="0" width={W} height={H} fill="#0a0f17"/>
+      <line x1="20" y1={mid} x2={W-20} y2={mid} stroke="var(--border2)"/>
+      <polyline points={pts} fill="none" stroke="var(--amb)" strokeWidth="2"/>
+      <line x1={20+todayDay/365*(W-40)} y1="10" x2={20+todayDay/365*(W-40)} y2={H-10} stroke="var(--grn)" strokeDasharray="4 3"/>
+      <text x={22+todayDay/365*(W-40)} y="20" fill="var(--grn)" fontSize="10">anchor</text>
+      {['Jan','Apr','Jul','Oct'].map((mn,i)=><text key={i} x={20+i*0.25*(W-40)} y={H-4} fill="var(--muted)" fontSize="9">{mn}</text>)}
+    </svg></div>
+  </div>);
+}
+function Wheel24Panel({price,ix}){
+  const w=useMemo(()=>wheel24(price,0),[price]);
+  const W=380,cx=W/2,cy=W/2,r=150;
+  return(<div>
+    <h2 className="pg-head">Static Wheel of 24</h2>
+    <p className="pg-desc">A 24-spoke wheel (15° each) of Square-of-9 price levels around the anchor. The four cardinal spokes (0/90/180/270°) are the strongest; the wheel divides the circle into 24 time/price segments.</p>
+    <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:14,alignItems:'start'}}>
+      <div className="panel"><svg viewBox={`0 0 ${W} ${W}`} width="100%" style={{maxWidth:W+'px'}}>
+        <rect x="0" y="0" width={W} height={W} fill="#0a0f17"/>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border2)"/>
+        {w.map((s,i)=>{const a=(-90+s.angle)*Math.PI/180;const x=cx+r*Math.cos(a),y=cy+r*Math.sin(a);
+          const lx=cx+(r+0)*Math.cos(a),ly=cy+(r+0)*Math.sin(a);
+          return<g key={i}><line x1={cx} y1={cy} x2={x} y2={y} stroke={s.cardinal?'var(--amb)':'var(--gridline)'} strokeWidth={s.cardinal?1.5:0.7}/>
+          <circle cx={x} cy={y} r={s.cardinal?3:2} fill={s.cardinal?'var(--amb)':'var(--cyn)'}/></g>;})}
+        <circle cx={cx} cy={cy} r="3" fill="var(--grn)"/>
+      </svg></div>
+      <div className="panel"><h3>24 Spokes</h3><div className="scroll" style={{maxHeight:330}}><table><thead><tr><th>Spoke</th><th>Angle</th><th>Price</th></tr></thead><tbody>
+        {w.map((s,i)=><tr key={i}><td>{s.spoke+1}</td><td className={s.cardinal?'amb':''}>{s.angle}°</td><td>{fmtN(s.price,ix.dec)}</td></tr>)}
+      </tbody></table></div></div>
+    </div>
+  </div>);
+}
+function OverlayPanel({price,ix}){
+  const [sHi,setSHi]=useState(Math.round(price*1.1));const [sLo,setSLo]=useState(Math.round(price*0.9));
+  const [tHi,setTHi]=useState(100);const [tLo,setTLo]=useState(0);
+  const scale=(sHi-sLo)!==0?((tHi-tLo)/(sHi-sLo)):0;const offset=tLo-sLo*scale;
+  return(<div>
+    <h2 className="pg-head">Overlay Tool</h2>
+    <p className="pg-desc">Overlays one series onto another's scale. Enter the source price range and the target range to get the linear scale &amp; offset that maps source prices onto the target. (Full chart overlay needs two price histories — extend fetch_data.py to pull OHLC.)</p>
+    <div className="panel"><div className="row">
+      <Field label="Source high"><Num value={sHi} onChange={setSHi}/></Field><Field label="Source low"><Num value={sLo} onChange={setSLo}/></Field>
+      <Field label="Target high"><Num value={tHi} onChange={setTHi}/></Field><Field label="Target low"><Num value={tLo} onChange={setTLo}/></Field>
+    </div></div>
+    <div className="cards">
+      <div className="card"><h4>Scale factor</h4><div className="big cyn">{scale.toFixed(5)}</div></div>
+      <div className="card"><h4>Offset</h4><div className="big">{offset.toFixed(2)}</div></div>
+      <div className="card"><h4>Map of anchor</h4><div className="big amb">{(price*scale+offset).toFixed(2)}</div></div>
+    </div>
+  </div>);
+}
+function PatternMatchPanel(){
+  return(<div>
+    <h2 className="pg-head">Pattern Matcher</h2>
+    <p className="pg-desc">Finds historical price segments most similar to a recent pattern.</p>
+    <div className="panel"><h3>Requires price history</h3>
+      <p className="mut" style={{margin:0}}>Pattern matching needs a full OHLC history for the selected index, which this standalone build doesn't bundle. The included <span className="kbd">fetch_data.py</span> (Scrapling) currently pulls the latest quote — extend it to fetch the Yahoo <span className="kbd">chart</span> history array (it already requests <span className="kbd">range=5d</span>; raise to <span className="kbd">range=10y&amp;interval=1d</span>) and a similarity scan (normalised Euclidean / DTW over a sliding window) can be added here. This panel is a deliberate placeholder rather than a fabricated result.</p>
+    </div>
+  </div>);
+}
+function HexagonChartPanel({price,ix}){
+  const rings=useMemo(()=>hexRing(6),[]);
+  const hex=useMemo(()=>hexCentered(price,4),[price]);
+  const W=380,cx=W/2,cy=W/2;
+  const hexPts=(cxx,cyy,rad)=>{let p='';for(let k=0;k<6;k++){const a=(-90+k*60)*Math.PI/180;p+=(cxx+rad*Math.cos(a))+','+(cyy+rad*Math.sin(a))+' ';}return p.trim();};
+  return(<div>
+    <h2 className="pg-head">The Hexagon Chart</h2>
+    <p className="pg-desc">Numbers spiral outward in rings of six. Corner values are centered-hexagonal numbers; the ring nearest the anchor frames its support/resistance.</p>
+    <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:14,alignItems:'start'}}>
+      <div className="panel"><svg viewBox={`0 0 ${W} ${W}`} width="100%" style={{maxWidth:W+'px'}}>
+        <rect x="0" y="0" width={W} height={W} fill="#0a0f17"/>
+        {rings.map((r,i)=><polygon key={i} points={hexPts(cx,cy,18+i*24)} fill="none" stroke={i%2?'var(--border2)':'var(--gridline)'}/>)}
+        {rings.map((r,i)=><text key={'t'+i} x={cx} y={cy-18-i*24-2} fill="var(--cyn)" fontSize="9" textAnchor="middle">{fmtN(r.corner,0)}</text>)}
+        <circle cx={cx} cy={cy} r="3" fill="var(--amb)"/>
+      </svg></div>
+      <div className="panel"><h3>Hex S/R near {fmtN(price,ix.dec)}</h3><table><tbody>
+        {hex.resistance.slice(0,4).slice().reverse().map((l,i)=><tr key={'r'+i}><td className="l"><span className="tag res">R</span></td><td>{fmtN(l.val,0)}</td></tr>)}
+        {hex.support.slice(0,4).map((l,i)=><tr key={'s'+i}><td className="l"><span className="tag sup">S</span></td><td>{fmtN(l.val,0)}</td></tr>)}
+      </tbody></table></div>
+    </div>
+  </div>);
+}
+function SquareOfFourPanel({price}){
+  const [size,setSize]=useState(13);
+  const rows=useMemo(()=>sq9Spiral(size,1),[size]);
+  return(<div>
+    <h2 className="pg-head">The Square of Four</h2>
+    <p className="pg-desc">A four-sided spiral emphasising the diagonal cross (the four corners). Numbers on the diagonals (cyan) and the cardinal cross (green) are the Square-of-Four's key angular relationships.</p>
+    <div className="panel"><div className="row"><Field label="Grid"><select value={size} onChange={e=>setSize(+e.target.value)}>{[9,11,13,17].map(s=><option key={s} value={s}>{s}×{s}</option>)}</select></Field></div>
+    <div style={{overflow:'auto',marginTop:8}}><table className="spiral"><tbody>
+      {rows.map((row,ri)=><tr key={ri}>{row.map((c,ci)=>{if(!c)return<td key={ci}></td>;const cls=c.row===0&&c.col===0?'center':c.onDiagonal?'diag':c.onCardinal?'card':'';return<td key={ci} className={cls}>{c.val}</td>;})}</tr>)}
+    </tbody></table></div>
+    <div className="legend"><span><i className="sw" style={{background:'var(--amb)'}}></i>Center</span><span><i className="sw" style={{background:'#14233a'}}></i>Diagonals (four corners)</span><span><i className="sw" style={{background:'#0e2b22'}}></i>Cardinal cross</span></div></div>
+  </div>);
+}
+
+/* ===================== PRICE CHART WORKSPACE (added) ===================== */
+function ChartPanel({price,dt,ix,hist,setAnchor,isLive}){
+  const [barsVisible,setBarsVisible]=useState(180);
+  const [offset,setOffset]=useState(0);
+  const [dir,setDir]=useState('up');
+  const [scale,setScale]=useState(ix.scale);
+  const [ov,setOv]=useState({sq9:true,fan:true,cycles:false,planets:false,moon:false,divs:false});
+  const [hover,setHover]=useState(null);
+  const [grab,setGrab]=useState(false);
+  const svgRef=React.useRef(null),dragRef=React.useRef({down:false}),viewRef=React.useRef({});
+  useEffect(()=>setScale(ix.scale),[ix]);
+  const clamp=(v,a,b)=>Math.min(Math.max(v,a),b);
+  const full=(hist&&hist.length)?hist:[];
+  const N=full.length;
+  const VBW=960,VBH=480,L=8,R=66,T=10,B=24,FUT=50;
+  const plotW=VBW-L-R,plotH=VBH-T-B;
+  useEffect(()=>{setOffset(o=>clamp(o,0,Math.max(0,N-Math.min(barsVisible,N||1))));},[hist]);
+  const bars=clamp(barsVisible,20,Math.max(20,N||20));
+  const off=clamp(offset,0,Math.max(0,N-bars));
+  const start=Math.max(0,N-bars-off);
+  const view=full.slice(start,N-off);
+  const n=view.length;
+  const totalX=Math.max(1,n-1+FUT);
+  const xOf=i=>L+i/totalX*plotW;
+  const barW=Math.max(1.1,plotW/(totalX+1)*0.62);
+  let pMin=1,pMax=2,lastT=new Date();
+  if(n){const lows=view.map(d=>d.l),highs=view.map(d=>d.h);pMin=Math.min.apply(null,lows);pMax=Math.max.apply(null,highs);
+    const pad=(pMax-pMin)*0.07||1;pMin-=pad;pMax+=pad;lastT=new Date(view[n-1].t);}
+  const yOf=p=>T+(1-(p-pMin)/(pMax-pMin))*plotH;
+  const pAt=y=>pMin+(1-(y-T)/plotH)*(pMax-pMin);
+  const anchorDate=dt;
+  const nearestI=(d)=>{let b=0,bd=1e18;for(let i=0;i<n;i++){const df=Math.abs(new Date(view[i].t)-d);if(df<bd){bd=df;b=i;}}return b;};
+  const xForDate=(d)=>{if(n&&d<=lastT)return xOf(nearestI(d));const cal=(d-lastT)/86400000;return xOf((n-1)+cal*5/7);};
+  const anchorXi=(n&&anchorDate<=lastT)?nearestI(anchorDate):(n-1)+(anchorDate-lastT)/86400000*5/7;
+  const anchorX=xOf(anchorXi);
+  viewRef.current={plotW,totalX,bars,off,N,start,L};
+  // overlays
+  const sr=useMemo(()=>sq9NearestSR(price,45),[price]);
+  const slope=scale*(dir==='up'?1:-1);
+  const rays=GANN_RATIOS.map(r=>{const s=slope*r.tpu;const p2=price+s*(totalX-anchorXi);
+    return{label:r.label,x1:anchorX,y1:yOf(price),x2:xOf(totalX),y2:yOf(p2),star:r.label==='1x1'};});
+  const cyc=useMemo(()=>gannTimeCycles(anchorDate,[30,45,60,90,120,180,270,360]),[anchorDate]);
+  const factor=price/360;
+  const planets=useMemo(()=>{const pl=planetaryLines(dt,factor,6,['Sun','Mercury','Venus','Mars','Jupiter','Saturn']);
+    return pl.map(p=>{const inr=p.lines.find(l=>l.price>=pMin&&l.price<=pMax);return inr?{name:p.name,glyph:p.glyph,price:inr.price}:null;}).filter(Boolean);},[dt,factor,pMin,pMax]);
+  const moon=useMemo(()=>{if(!n)return[];const evs=nextMoonEvents(new Date(view[0].t),40);const lim=new Date(lastT.getTime()+FUT*86400000);
+    return evs.filter(e=>(e.label==='New Moon'||e.label==='Full Moon')&&e.date>=new Date(view[0].t)&&e.date<=lim);},[hist,bars,off]);
+  const swingHi=n?Math.max.apply(null,view.map(d=>d.h)):0,swingLo=n?Math.min.apply(null,view.map(d=>d.l)):0;
+  const divs=useMemo(()=>priceDivision(swingHi,swingLo,EIGHTHS),[swingHi,swingLo]);
+  // interaction
+  const toSvg=(e)=>{const r=(svgRef.current||e.currentTarget).getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*VBW,y:(e.clientY-r.top)/r.height*VBH};};
+  const onDown=(e)=>{const{x}=toSvg(e);dragRef.current={down:true,startX:x,startOff:off,moved:false};setGrab(true);};
+  const onMove=(e)=>{const{x,y}=toSvg(e);
+    if(dragRef.current.down){const dpx=x-dragRef.current.startX;const ppb=plotW/(totalX+1);
+      if(Math.abs(dpx)>4)dragRef.current.moved=true;
+      const no=clamp(dragRef.current.startOff+Math.round(dpx/ppb),0,Math.max(0,N-bars));setOffset(no);}
+    let i=clamp(Math.round((x-L)/plotW*totalX),0,n-1);setHover({x,y,i,p:pAt(y)});};
+  const onUp=(e)=>{if(dragRef.current.down&&!dragRef.current.moved){const{x}=toSvg(e);let i=clamp(Math.round((x-L)/plotW*totalX),0,n-1);const b=view[i];if(b&&setAnchor)setAnchor(b.c,b.t);}dragRef.current.down=false;setGrab(false);};
+  const onLeave=()=>{dragRef.current.down=false;setGrab(false);setHover(null);};
+  useEffect(()=>{const el=svgRef.current;if(!el)return;
+    const wh=(e)=>{e.preventDefault();const v=viewRef.current;const r=el.getBoundingClientRect();
+      const x=(e.clientX-r.left)/r.width*VBW;const frac=clamp((x-L)/v.plotW,0,1);
+      const fullIdx=v.start+clamp(frac*v.totalX,0,v.bars-1);
+      let nb=Math.round(v.bars*(e.deltaY<0?0.84:1.19));nb=clamp(nb,20,Math.max(20,v.N));
+      let ns=Math.round(fullIdx-frac*nb);let no=v.N-nb-ns;no=clamp(no,0,Math.max(0,v.N-nb));
+      setBarsVisible(nb);setOffset(no);};
+    el.addEventListener('wheel',wh,{passive:false});return ()=>el.removeEventListener('wheel',wh);},[]);
+  const zoom=(f)=>setBarsVisible(b=>clamp(Math.round(b*f),20,Math.max(20,N)));
+  const pan=(d)=>setOffset(o=>clamp(o+Math.round(bars*0.3)*d,0,Math.max(0,N-bars)));
+  const reset=()=>{setBarsVisible(180);setOffset(0);};
+  const Chk=({k,label,c})=>(<label style={{display:'inline-flex',alignItems:'center',gap:5,cursor:'pointer',marginRight:12,color:ov[k]?(c||'var(--txt)'):'var(--dim)'}}>
+    <input type="checkbox" checked={ov[k]} onChange={()=>setOv(s=>Object.assign({},s,{[k]:!s[k]}))} style={{accentColor:c||'var(--grn)'}}/>{label}</label>);
+  const fmt=v=>fmtN(v,ix.dec);
+  const dateTicks=[];for(let k=0;k<=5;k++){const i=Math.round(k/5*(n-1));if(view[i])dateTicks.push({x:xOf(i),t:view[i].t});}
+  const priceTicks=[];for(let k=0;k<=5;k++){const v=pMin+k/5*(pMax-pMin);priceTicks.push({y:yOf(v),v});}
+  const hoverBar=hover&&view[hover.i];
+  return(<div>
+    <h2 className="pg-head">{ix.name} <span className="sub">Price Chart</span> <span style={{fontSize:11,padding:'2px 7px',borderRadius:4,background:isLive?'var(--grn2)':'var(--amb2)',color:isLive?'var(--grn)':'var(--amb)'}}>{isLive?'LIVE OHLC':'DEMO DATA'}</span></h2>
+    <p className="pg-desc"><b>Scroll</b> to zoom · <b>drag</b> to pan · <b>click</b> a candle to set the pivot (drives every tool). {isLive?'':'Demo series shown — run fetch_data.py or load a CSV for real prices.'}</p>
+    <div className="panel" style={{padding:'8px 12px'}}><div className="row" style={{marginBottom:0,gap:8,alignItems:'center'}}>
+      <div style={{display:'flex',gap:4}}>
+        <button className="btn sm" title="Zoom in" onClick={()=>zoom(0.8)}>＋</button>
+        <button className="btn sm" title="Zoom out" onClick={()=>zoom(1.25)}>－</button>
+        <button className="btn sm" title="Scroll to older bars" onClick={()=>pan(1)}>◀</button>
+        <button className="btn sm" title="Scroll to newer bars" onClick={()=>pan(-1)}>▶</button>
+        <button className="btn sm" title="Reset view" onClick={reset}>⟲ Reset</button>
+      </div>
+      <Field label="Fan scale (pts/bar)"><Num value={scale} onChange={setScale} w={84}/></Field>
+      <Field label="Fan dir"><select value={dir} onChange={e=>setDir(e.target.value)}><option value="up">Rising ▲</option><option value="dn">Falling ▼</option></select></Field>
+      <button className="btn sm" onClick={()=>{const b=view[n-1];if(b&&setAnchor)setAnchor(b.c,b.t);}}>Anchor → latest</button>
+      <div className="mut" style={{fontSize:11,marginLeft:'auto'}}>{n?`${view[0].t} → ${view[n-1].t} · ${bars} bars`:''}</div>
+    </div>
+    <div style={{marginTop:8,display:'flex',flexWrap:'wrap',alignItems:'center'}}>
+      <span className="mut" style={{marginRight:10,fontSize:11}}>OVERLAYS:</span>
+      <Chk k="sq9" label="Sq9 Levels" c="var(--amb)"/><Chk k="fan" label="Gann Fan" c="var(--cyn)"/><Chk k="cycles" label="Time Cycles" c="var(--vio)"/>
+      <Chk k="planets" label="Planetary Lines" c="var(--grn)"/><Chk k="moon" label="Moon Phases" c="#cdd9e5"/><Chk k="divs" label="Range Divisions" c="var(--mag)"/>
+    </div></div>
+    <div className="panel" style={{padding:6}}>
+      <svg ref={svgRef} viewBox={`0 0 ${VBW} ${VBH}`} width="100%" style={{maxWidth:VBW+'px',display:'block',cursor:grab?'grabbing':'crosshair',userSelect:'none'}} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onLeave}>
+        <defs><clipPath id="plotclip"><rect x={L} y={T} width={plotW} height={plotH}/></clipPath></defs>
+        <rect x="0" y="0" width={VBW} height={VBH} fill="#0a0f17"/>
+        {priceTicks.map((t,i)=><g key={'pt'+i}><line x1={L} y1={t.y} x2={L+plotW} y2={t.y} stroke="var(--gridline)"/><text x={L+plotW+4} y={t.y+3} fill="var(--dim)" fontSize="9">{fmt(t.v)}</text></g>)}
+        {dateTicks.map((t,i)=><text key={'dt'+i} x={t.x} y={VBH-8} fill="var(--dim)" fontSize="9" textAnchor="middle">{t.t.slice(2)}</text>)}
+        <line x1={anchorX} y1={T} x2={anchorX} y2={T+plotH} stroke="var(--grn)" strokeDasharray="3 3" opacity="0.7" clipPath="url(#plotclip)"/>
+        <g clipPath="url(#plotclip)">
+          {view.map((d,i)=>{const x=xOf(i),up=d.c>=d.o,col=up?'var(--grn)':'var(--red)';
+            const yT=yOf(Math.max(d.o,d.c)),yB=yOf(Math.min(d.o,d.c));
+            return<g key={i}><line x1={x} y1={yOf(d.h)} x2={x} y2={yOf(d.l)} stroke={col} strokeWidth="0.8"/>
+              <rect x={x-barW/2} y={yT} width={barW} height={Math.max(0.8,yB-yT)} fill={col}/></g>;})}
+          {ov.divs&&divs.map((l,i)=><line key={'dv'+i} x1={L} y1={yOf(l.price)} x2={L+plotW} y2={yOf(l.price)} stroke="var(--mag)" strokeWidth={l.frac===0.5?1:0.5} opacity={l.frac===0.5?0.7:0.35} strokeDasharray="2 3"/>)}
+          {ov.sq9&&sr.resistance.map((v,i)=><g key={'r'+i}><line x1={L} y1={yOf(v)} x2={L+plotW} y2={yOf(v)} stroke="var(--amb)" strokeWidth="1" opacity="0.8"/><text x={L+4} y={yOf(v)-2} fill="var(--amb)" fontSize="9">R {fmt(v)}</text></g>)}
+          {ov.sq9&&sr.support.map((v,i)=><g key={'s'+i}><line x1={L} y1={yOf(v)} x2={L+plotW} y2={yOf(v)} stroke="var(--grn)" strokeWidth="1" opacity="0.8"/><text x={L+4} y={yOf(v)-2} fill="var(--grn)" fontSize="9">S {fmt(v)}</text></g>)}
+          {ov.planets&&planets.map((p,i)=><g key={'pl'+i}><line x1={L} y1={yOf(p.price)} x2={L+plotW} y2={yOf(p.price)} stroke={PCOLOR[p.name]} strokeWidth="0.8" opacity="0.85" strokeDasharray="5 3"/><text x={L+plotW-62} y={yOf(p.price)-2} fill={PCOLOR[p.name]} fontSize="10">{p.glyph} {p.name} {fmt(p.price)}</text></g>)}
+          {ov.fan&&rays.map((r,i)=><line key={'f'+i} x1={r.x1} y1={r.y1} x2={r.x2} y2={r.y2} stroke={r.star?'var(--amb)':'var(--cyn)'} strokeWidth={r.star?1.6:0.8} opacity={r.star?1:0.7}/>)}
+          {ov.cycles&&cyc.map((c,i)=>{const x=xForDate(c.date);if(x<L||x>L+plotW)return null;return<g key={'c'+i}><line x1={x} y1={T} x2={x} y2={T+plotH} stroke="var(--vio)" strokeWidth="0.8" opacity="0.7" strokeDasharray="4 3"/><text x={x+2} y={T+10} fill="var(--vio)" fontSize="8">{c.days}d</text></g>;})}
+          {ov.moon&&moon.map((m,i)=>{const x=xForDate(m.date);if(x<L||x>L+plotW)return null;const full2=m.label==='Full Moon';return<g key={'m'+i}><line x1={x} y1={T} x2={x} y2={T+plotH} stroke="#7d8aa0" strokeWidth="0.6" opacity="0.5"/><circle cx={x} cy={T+8} r="4" fill={full2?'#e8eef5':'#1a2636'} stroke="#cdd9e5" strokeWidth="0.8"/></g>;})}
+          {price>=pMin&&price<=pMax&&<circle cx={anchorX} cy={yOf(price)} r="4" fill="var(--grn)" stroke="#000" strokeWidth="0.5"/>}
+          {hover&&<g><line x1={hover.x} y1={T} x2={hover.x} y2={T+plotH} stroke="var(--muted)" strokeWidth="0.5" strokeDasharray="2 2"/><line x1={L} y1={hover.y} x2={L+plotW} y2={hover.y} stroke="var(--muted)" strokeWidth="0.5" strokeDasharray="2 2"/></g>}
+        </g>
+        {hover&&<text x={L+plotW+4} y={hover.y+3} fill="var(--cyn)" fontSize="9">{fmt(hover.p)}</text>}
+      </svg>
+      {hoverBar&&<div style={{display:'flex',gap:16,padding:'4px 10px',fontSize:11,color:'var(--muted)',borderTop:'1px solid var(--border)'}}>
+        <span className="cyn">{hoverBar.t}</span><span>O <b className="mut">{fmt(hoverBar.o)}</b></span><span>H <b className="amb">{fmt(hoverBar.h)}</b></span><span>L <b className="amb">{fmt(hoverBar.l)}</b></span><span>C <b style={{color:hoverBar.c>=hoverBar.o?'var(--grn)':'var(--red)'}}>{fmt(hoverBar.c)}</b></span></div>}
+    </div>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
+      <div className="panel"><h3>Anchor (pivot)</h3><table><tbody>
+        <tr><td className="l mut">Price</td><td className="pricebox">{fmt(price)}</td></tr>
+        <tr><td className="l mut">Date</td><td className="cyn">{fmtDate(dt)}</td></tr>
+        <tr><td className="l mut">√Price</td><td>{Math.sqrt(price).toFixed(3)}</td></tr>
+      </tbody></table><div className="note">Click a candle to move the pivot.</div></div>
+      <div className="panel"><h3>Sq9 Resistance</h3><table><tbody>{sr.resistance.map((v,i)=><tr key={i}><td className="l"><span className="tag res">R{i+1}</span></td><td>{fmt(v)}</td></tr>)}</tbody></table></div>
+      <div className="panel"><h3>Sq9 Support</h3><table><tbody>{sr.support.map((v,i)=><tr key={i}><td className="l"><span className="tag sup">S{i+1}</span></td><td>{fmt(v)}</td></tr>)}</tbody></table></div>
+    </div>
+  </div>);
+}
+
+/* ===================== APP SHELL ===================== */
+function App(){
+  const [ixKey,setIxKey]=useState('NSEI');
+  const ix=INDICES[ixKey];
+  const [price,setPrice]=useState(INDICES.NSEI.anchor);
+  const [dateStr,setDateStr]=useState(new Date().toISOString().slice(0,10));
+  const [tool,setTool]=useState('chart');
+  const [sbOpen,setSbOpen]=useState(true);
+  const [collapsed,setCollapsed]=useState({});
+  const [data,setData]=useState(null);
+  const dt=useMemo(()=>new Date(dateStr+'T12:00:00Z'),[dateStr]);
+  const hist=useMemo(()=>{const hd=data&&data[ixKey]&&data[ixKey].history;return (hd&&hd.length)?hd:genDemoHistory(ixKey,ix.anchor);},[data,ixKey,ix]);
+  const liveHist=!!(data&&data[ixKey]&&data[ixKey].history&&data[ixKey].history.length);
+  const setAnchor=(p,dstr)=>{if(p!=null&&!isNaN(p))setPrice(+p);if(dstr)setDateStr(dstr);};
+
+  // try auto-load data.json (works when served over http)
+  useEffect(()=>{fetch('./data.json').then(r=>r.ok?r.json():null).then(j=>{if(j)setData(j);}).catch(()=>{});},[]);
+  // when index changes, set price from live data if present else anchor placeholder
+  useEffect(()=>{
+    if(data&&data[ixKey]&&data[ixKey].price){setPrice(+data[ixKey].price);}
+    else setPrice(INDICES[ixKey].anchor);
+  },[ixKey,data]);
+
+  const onFile=(e)=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
+    r.onload=()=>{const txt=r.result;
+      if(/\.csv$/i.test(f.name)||(!/^[\s{[]/.test(txt)&&txt.indexOf(',')>0)){
+        const rows=parseOHLCcsv(txt);
+        if(rows.length){const last=rows[rows.length-1];
+          setData(d=>{const nd=Object.assign({},d||{});nd[ixKey]=Object.assign({},nd[ixKey],{price:last.c,date:last.t,history:rows,symbol:ix.yahoo});return nd;});
+          setPrice(last.c);setDateStr(last.t);}
+        else alert('No valid OHLC rows (expected: date,open,high,low,close)');
+        return;}
+      try{const j=JSON.parse(txt);setData(j);}catch(err){alert('Unrecognised file - use data.json or an OHLC CSV');}};
+    r.readAsText(f);};
+
+  const live=data&&data[ixKey]&&data[ixKey].price;
+  const renderTool=()=>{
+    const P={price,dt,ix,hist,setAnchor,isLive:liveHist};
+    switch(tool){
+      case'chart':return<ChartPanel {...P}/>;
+      case'dash':return<Dashboard {...P}/>;
+      case'sq9calc':return<Sq9Calc {...P}/>;
+      case'sq9spiral':return<Sq9Wheel {...P}/>;
+      case'gannfan':return<GannFanPanel {...P}/>;
+      case'gannbox':return<GannBoxPanel {...P}/>;
+      case'sq9dates':return<Sq9DatesPanel {...P}/>;
+      case'timecycles':return<TimeCyclesPanel {...P}/>;
+      case'pricediv':return<PriceDivPanel {...P}/>;
+      case'timediv':return<TimeDivPanel {...P}/>;
+      case'ephem':return<EphemPanel {...P}/>;
+      case'aspects':return<AspectsPanel {...P}/>;
+      case'moon':return<MoonPanel {...P}/>;
+      case'retro':return<RetroPanel {...P}/>;
+      case'declin':return<DeclinPanel {...P}/>;
+      case'planetlines':return<PlanetLinesPanel {...P}/>;
+      case'sq9planet':return<Sq9PlanetPanel {...P}/>;
+      case'about':return<About/>;
+      case'statsq9':return<WithBanner text="Static — anchored to a fixed price; levels do not move."><Sq9Calc {...P}/></WithBanner>;
+      case'dynsq9':return<WithBanner text="Dynamic — recomputes from your current anchor as price updates."><Sq9Calc {...P}/></WithBanner>;
+      case'sq9fan':return<Sq9FanPanel {...P}/>;
+      case'sq9int':return<Sq9IntPanel {...P}/>;
+      case'dynfan':return<WithBanner text="Dynamic — fan re-anchors to your latest pivot."><GannFanPanel {...P}/></WithBanner>;
+      case'dynlevels':return<DynLevelsPanel {...P}/>;
+      case'hexint':return<HexIntPanel {...P}/>;
+      case'gsquares':return<GSquaresPanel {...P}/>;
+      case'wheel24':return<Wheel24Panel {...P}/>;
+      case'div3':return<Div3Panel {...P}/>;
+      case'div8':return<Div8Panel {...P}/>;
+      case'measdeg':return<MeasDegPanel {...P}/>;
+      case'singledeg':return<SingleDegPanel {...P}/>;
+      case'hilodeg':return<HiLoDegPanel {...P}/>;
+      case'zerodeg':return<ZeroDegPanel {...P}/>;
+      case'zeroprice':return<ZeroPricePanel {...P}/>;
+      case'seventimes':return<SevenTimesPanel {...P}/>;
+      case'trioct':return<TriOctPanel {...P}/>;
+      case'trioctt':return<TriOctTimePanel {...P}/>;
+      case'pyrapoint':return<PyrapointPanel {...P}/>;
+      case'vibration':return<VibrationPanel {...P}/>;
+      case'masspressure':return<MassPressurePanel {...P}/>;
+      case'numsearch':return<NumSearchPanel {...P}/>;
+      case'tdiv3':return<TimeDiv3Panel {...P}/>;
+      case'tdiv8':return<TimeDiv8Panel {...P}/>;
+      case'tplabels':return<TimePriceLabelsPanel {...P}/>;
+      case'tpmeasure':return<TimePriceMeasurePanel {...P}/>;
+      case'sqrange':return<SqRangePanel {...P}/>;
+      case'sqrangeang':return<SqRangeAnglePanel {...P}/>;
+      case'sqrangemark':return<SqRangeMarkerPanel {...P}/>;
+      case'sqmark':return<SqMarkersPanel {...P}/>;
+      case'sqswing':return<SqSwingPanel {...P}/>;
+      case'sqtopbot':return<SqTopBotPanel {...P}/>;
+      case'overlay':return<OverlayPanel {...P}/>;
+      case'patternmatch':return<PatternMatchPanel {...P}/>;
+      case'chexagon':return<HexagonChartPanel {...P}/>;
+      case'csqfour':return<SquareOfFourPanel {...P}/>;
+      case'cwheel24':return<Wheel24Panel {...P}/>;
+      case'csq9':return<WithBanner text="The Square of Nine — the master spiral."><Sq9Wheel {...P}/></WithBanner>;
+      default:return<Dashboard {...P}/>;
+    }
+  };
+  return(<div className="app">
+    <div className="topbar">
+      <button className="btn sm" onClick={()=>setSbOpen(o=>!o)} title="Toggle sidebar">{sbOpen?'◀ Hide':'▶ Tools'}</button>
+      <div className="brand"><span className="dot"></span>GANN·ASTRO<small>TERMINAL</small></div>
+      <div className="tb-spacer"></div>
+      <Field label="Index"><select value={ixKey} onChange={e=>setIxKey(e.target.value)}>
+        {Object.entries(INDICES).map(([k,v])=><option key={k} value={k}>{k} · {v.name}</option>)}</select></Field>
+      <Field label="Anchor price"><input type="number" value={price} step="any" style={{width:'120px'}} onChange={e=>setPrice(parseFloat(e.target.value))}/></Field>
+      <Field label="Date"><input type="date" value={dateStr} onChange={e=>setDateStr(e.target.value)}/></Field>
+      <button className="btn sm" onClick={()=>setDateStr(new Date().toISOString().slice(0,10))}>Today</button>
+      <label className="btn sm" style={{cursor:'pointer'}} title="Load data.json (fetch_data.py) or an OHLC CSV">Load data / CSV<input type="file" accept=".json,.csv,application/json,text/csv" style={{display:'none'}} onChange={onFile}/></label>
+      <div className="datasrc"><span className={'led'+(live?' live':'')}></span>{live?'LIVE':'MANUAL'}</div>
+    </div>
+    <div className="main" style={{position:'relative'}}>
+      <div className={'sidebar'+(sbOpen?'':' hidden')}>
+        {TOOLS.map(g=><div className="sb-group" key={g.group}>
+          <div className="sb-title" style={{cursor:'pointer'}} onClick={()=>setCollapsed(c=>Object.assign({},c,{[g.group]:!c[g.group]}))}><span className="chev">{collapsed[g.group]?'▸':'▾'}</span>{g.group}<span className="grpcount">{g.items.length}</span></div>
+          {!collapsed[g.group]&&g.items.map(it=><div key={it.id} className={'sb-item'+(tool===it.id?' active':'')} onClick={()=>setTool(it.id)}>
+            <span className="ic">{it.ic}</span>{it.name}</div>)}
+        </div>)}
+        <div className="note" style={{padding:'10px 14px'}}>Anchor &amp; date in the top bar drive every tool.</div>
+      </div>
+      {!sbOpen&&<div className="reopen" onClick={()=>setSbOpen(true)}>▶ TOOLS</div>}
+      <div className="content">{renderTool()}</div>
+    </div>
+  </div>);
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
