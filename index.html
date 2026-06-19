@@ -367,6 +367,53 @@ function parseOHLCcsv(text){
 function businessDaysFwd(fromDate,calDays){return calDays*5/7;}
 
 
+/* ===================== LIVE FETCH + PIVOT POINTS (added) ===================== */
+async function fetchYahoo(symbol){
+  const url='https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(symbol)+'?interval=1d&range=2y';
+  const proxies=[
+    u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
+    u=>'https://corsproxy.io/?url='+encodeURIComponent(u),
+    u=>'https://thingproxy.freeboard.io/fetch/'+u
+  ];
+  let lastErr;
+  for(const wrap of proxies){
+    try{
+      const r=await fetch(wrap(url),{cache:'no-store'});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const data=await r.json();
+      const res=data&&data.chart&&data.chart.result&&data.chart.result[0];
+      if(!res) throw new Error('no result');
+      const meta=res.meta||{}, ts=res.timestamp||[];
+      const q=(res.indicators&&res.indicators.quote&&res.indicators.quote[0])||{};
+      const O=q.open||[],H=q.high||[],L=q.low||[],C=q.close||[];
+      const hist=[];
+      for(let i=0;i<ts.length;i++){const o=O[i],h=H[i],l=L[i],c=C[i];
+        if(o==null||h==null||l==null||c==null) continue;
+        hist.push({t:new Date(ts[i]*1000).toISOString().slice(0,10),o:+(+o).toFixed(2),h:+(+h).toFixed(2),l:+(+l).toFixed(2),c:+(+c).toFixed(2)});}
+      if(!hist.length) throw new Error('no candles');
+      return {symbol,source:'yahoo',price:(meta.regularMarketPrice!=null?meta.regularMarketPrice:hist[hist.length-1].c),
+        prevClose:meta.chartPreviousClose,date:hist[hist.length-1].t,currency:meta.currency,history:hist};
+    }catch(e){lastErr=e;}
+  }
+  throw lastErr||new Error('all proxies failed');
+}
+/* Classic floor pivots + CPR (from a reference session's H/L/C) */
+function pivotLevels(H,L,C){
+  const P=(H+L+C)/3;
+  const R1=2*P-L, S1=2*P-H;
+  const R2=P+(H-L), S2=P-(H-L);
+  const R3=H+2*(P-L), S3=L-2*(H-P);
+  const BC=(H+L)/2, TC=2*P-BC;
+  return {P,R1,R2,R3,S1,S2,S3,BC,TC,cprWidth:Math.abs(TC-BC)};
+}
+/* Camarilla levels */
+function camarillaLevels(H,L,C){
+  const r=H-L;
+  return {H4:C+r*1.1/2,H3:C+r*1.1/4,H2:C+r*1.1/6,H1:C+r*1.1/12,
+          L1:C-r*1.1/12,L2:C-r*1.1/6,L3:C-r*1.1/4,L4:C-r*1.1/2};
+}
+
+
 /* ===================== UI HELPERS ===================== */
 const {useState,useEffect,useMemo}=React;
 const INDICES={
@@ -378,7 +425,7 @@ const INDICES={
   SPX:{name:'S&P 500',region:'US',yahoo:'^GSPC',anchor:6000,scale:6,dec:2}
 };
 const TOOLS=[
-  {group:'Overview',items:[{id:'chart',name:'Price Chart',ic:'📈'},{id:'dash',name:'Dashboard',ic:'▤'}]},
+  {group:'Overview',items:[{id:'chart',name:'Price Chart',ic:'📈'},{id:'pivots',name:'Pivot Points',ic:'⊹'},{id:'dash',name:'Dashboard',ic:'▤'}]},
   {group:'Gann Tools',items:[
     {id:'sq9calc',name:'Square of 9 Calculator',ic:'◎'},
     {id:'sq9spiral',name:'Square of 9 Wheel',ic:'🌀'},
@@ -1303,12 +1350,12 @@ function SquareOfFourPanel({price}){
 }
 
 /* ===================== PRICE CHART WORKSPACE (added) ===================== */
-function ChartPanel({price,dt,ix,hist,setAnchor,isLive}){
+function ChartPanel({price,dt,ix,hist,setAnchor,isLive,src}){
   const [barsVisible,setBarsVisible]=useState(180);
   const [offset,setOffset]=useState(0);
   const [dir,setDir]=useState('up');
   const [scale,setScale]=useState(ix.scale);
-  const [ov,setOv]=useState({sq9:true,fan:true,cycles:false,planets:false,moon:false,divs:false});
+  const [ov,setOv]=useState({pivots:true,sq9:false,fan:true,cycles:false,planets:false,moon:false,divs:false});
   const [hover,setHover]=useState(null);
   const [grab,setGrab]=useState(false);
   const svgRef=React.useRef(null),dragRef=React.useRef({down:false}),viewRef=React.useRef({});
@@ -1340,6 +1387,9 @@ function ChartPanel({price,dt,ix,hist,setAnchor,isLive}){
   viewRef.current={plotW,totalX,bars,off,N,start,L};
   // overlays
   const sr=useMemo(()=>sq9NearestSR(price,45),[price]);
+  const pivRef=full.length>=2?full[full.length-2]:(full[0]||null);
+  const todayBar=full.length?full[full.length-1]:null;
+  const piv=pivRef?pivotLevels(pivRef.h,pivRef.l,pivRef.c):null;
   const slope=scale*(dir==='up'?1:-1);
   const rays=GANN_RATIOS.map(r=>{const s=slope*r.tpu;const p2=price+s*(totalX-anchorXi);
     return{label:r.label,x1:anchorX,y1:yOf(price),x2:xOf(totalX),y2:yOf(p2),star:r.label==='1x1'};});
@@ -1379,7 +1429,7 @@ function ChartPanel({price,dt,ix,hist,setAnchor,isLive}){
   const priceTicks=[];for(let k=0;k<=5;k++){const v=pMin+k/5*(pMax-pMin);priceTicks.push({y:yOf(v),v});}
   const hoverBar=hover&&view[hover.i];
   return(<div>
-    <h2 className="pg-head">{ix.name} <span className="sub">Price Chart</span> <span style={{fontSize:11,padding:'2px 7px',borderRadius:4,background:isLive?'var(--grn2)':'var(--amb2)',color:isLive?'var(--grn)':'var(--amb)'}}>{isLive?'LIVE OHLC':'DEMO DATA'}</span></h2>
+    <h2 className="pg-head">{ix.name} <span className="sub">Price Chart</span> <span style={{fontSize:11,padding:'2px 7px',borderRadius:4,background:isLive?'var(--grn2)':'var(--amb2)',color:isLive?'var(--grn)':'var(--amb)'}}>{isLive?('LIVE · '+(src||'OHLC')):'DEMO DATA'}</span></h2>
     <p className="pg-desc"><b>Scroll</b> to zoom · <b>drag</b> to pan · <b>click</b> a candle to set the pivot (drives every tool). {isLive?'':'Demo series shown — run fetch_data.py or load a CSV for real prices.'}</p>
     <div className="panel" style={{padding:'8px 12px'}}><div className="row" style={{marginBottom:0,gap:8,alignItems:'center'}}>
       <div style={{display:'flex',gap:4}}>
@@ -1396,9 +1446,10 @@ function ChartPanel({price,dt,ix,hist,setAnchor,isLive}){
     </div>
     <div style={{marginTop:8,display:'flex',flexWrap:'wrap',alignItems:'center'}}>
       <span className="mut" style={{marginRight:10,fontSize:11}}>OVERLAYS:</span>
-      <Chk k="sq9" label="Sq9 Levels" c="var(--amb)"/><Chk k="fan" label="Gann Fan" c="var(--cyn)"/><Chk k="cycles" label="Time Cycles" c="var(--vio)"/>
+      <Chk k="pivots" label="Pivot Points" c="#ff9d3b"/><Chk k="sq9" label="Sq9 Levels" c="var(--amb)"/><Chk k="fan" label="Gann Fan" c="var(--cyn)"/><Chk k="cycles" label="Time Cycles" c="var(--vio)"/>
       <Chk k="planets" label="Planetary Lines" c="var(--grn)"/><Chk k="moon" label="Moon Phases" c="#cdd9e5"/><Chk k="divs" label="Range Divisions" c="var(--mag)"/>
-    </div></div>
+    </div>
+    {(pivRef||todayBar)&&<div className="mut" style={{marginTop:6,fontSize:11}}>{todayBar?("Today "+todayBar.t+": open "+fmt(todayBar.o)):""}{pivRef?("  ·  prev session "+pivRef.t+": close "+fmt(pivRef.c)+", H "+fmt(pivRef.h)+", L "+fmt(pivRef.l)):""}</div>}</div>
     <div className="panel" style={{padding:6}}>
       <svg ref={svgRef} viewBox={`0 0 ${VBW} ${VBH}`} width="100%" style={{maxWidth:VBW+'px',display:'block',cursor:grab?'grabbing':'crosshair',userSelect:'none'}} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onLeave}>
         <defs><clipPath id="plotclip"><rect x={L} y={T} width={plotW} height={plotH}/></clipPath></defs>
@@ -1412,6 +1463,9 @@ function ChartPanel({price,dt,ix,hist,setAnchor,isLive}){
             return<g key={i}><line x1={x} y1={yOf(d.h)} x2={x} y2={yOf(d.l)} stroke={col} strokeWidth="0.8"/>
               <rect x={x-barW/2} y={yT} width={barW} height={Math.max(0.8,yB-yT)} fill={col}/></g>;})}
           {ov.divs&&divs.map((l,i)=><line key={'dv'+i} x1={L} y1={yOf(l.price)} x2={L+plotW} y2={yOf(l.price)} stroke="var(--mag)" strokeWidth={l.frac===0.5?1:0.5} opacity={l.frac===0.5?0.7:0.35} strokeDasharray="2 3"/>)}
+          {ov.pivots&&piv&&[['P',piv.P,'var(--amb)',1.4],['R1',piv.R1,'#f06a6a',0.9],['R2',piv.R2,'#f06a6a',0.9],['R3',piv.R3,'#f06a6a',0.9],['S1',piv.S1,'#36d399',0.9],['S2',piv.S2,'#36d399',0.9],['S3',piv.S3,'#36d399',0.9]].map((l,i)=>(l[1]>=pMin&&l[1]<=pMax?<g key={'pv'+i}><line x1={L} y1={yOf(l[1])} x2={L+plotW} y2={yOf(l[1])} stroke={l[2]} strokeWidth={l[3]} opacity="0.9"/><text x={L+92} y={yOf(l[1])-2} fill={l[2]} fontSize="9">{l[0]} {fmt(l[1])}</text></g>:null))}
+          {ov.pivots&&piv&&[piv.TC,piv.BC].map((v,i)=>(v>=pMin&&v<=pMax?<line key={'cpr'+i} x1={L} y1={yOf(v)} x2={L+plotW} y2={yOf(v)} stroke="#ff9d3b" strokeWidth="0.7" strokeDasharray="1 2" opacity="0.7"/>:null))}
+          {ov.pivots&&todayBar&&todayBar.o>=pMin&&todayBar.o<=pMax&&<line x1={L} y1={yOf(todayBar.o)} x2={L+plotW} y2={yOf(todayBar.o)} stroke="#ffffff" strokeWidth="0.7" strokeDasharray="4 3" opacity="0.55"/>}
           {ov.sq9&&sr.resistance.map((v,i)=><g key={'r'+i}><line x1={L} y1={yOf(v)} x2={L+plotW} y2={yOf(v)} stroke="var(--amb)" strokeWidth="1" opacity="0.8"/><text x={L+4} y={yOf(v)-2} fill="var(--amb)" fontSize="9">R {fmt(v)}</text></g>)}
           {ov.sq9&&sr.support.map((v,i)=><g key={'s'+i}><line x1={L} y1={yOf(v)} x2={L+plotW} y2={yOf(v)} stroke="var(--grn)" strokeWidth="1" opacity="0.8"/><text x={L+4} y={yOf(v)-2} fill="var(--grn)" fontSize="9">S {fmt(v)}</text></g>)}
           {ov.planets&&planets.map((p,i)=><g key={'pl'+i}><line x1={L} y1={yOf(p.price)} x2={L+plotW} y2={yOf(p.price)} stroke={PCOLOR[p.name]} strokeWidth="0.8" opacity="0.85" strokeDasharray="5 3"/><text x={L+plotW-62} y={yOf(p.price)-2} fill={PCOLOR[p.name]} fontSize="10">{p.glyph} {p.name} {fmt(p.price)}</text></g>)}
@@ -1438,6 +1492,68 @@ function ChartPanel({price,dt,ix,hist,setAnchor,isLive}){
   </div>);
 }
 
+/* ===================== PIVOT POINTS PANEL (added) ===================== */
+function PivotsPanel({price,ix,hist}){
+  const [mode,setMode]=useState('classic');
+  const data=(hist&&hist.length)?hist:[];const n=data.length;
+  const today=n?data[n-1]:null;
+  const refIdx=n>=2?n-2:(n?n-1:-1);
+  const ref=refIdx>=0?data[refIdx]:null;
+  const [oH,setOH]=useState(ref?ref.h:Math.round(price*1.01));
+  const [oL,setOL]=useState(ref?ref.l:Math.round(price*0.99));
+  const [oC,setOC]=useState(ref?ref.c:Math.round(price));
+  useEffect(()=>{if(ref){setOH(ref.h);setOL(ref.l);setOC(ref.c);}},[ref&&ref.t]);
+  const piv=useMemo(()=>pivotLevels(oH,oL,oC),[oH,oL,oC]);
+  const cam=useMemo(()=>camarillaLevels(oH,oL,oC),[oH,oL,oC]);
+  const fmt=v=>fmtN(v,ix.dec);
+  const cur=today?today.c:price;
+  return(<div>
+    <h2 className="pg-head">Pivot Points <span className="sub">prev session → today</span></h2>
+    <p className="pg-desc">Classic floor-trader pivots, CPR and Camarilla levels computed from the <b>previous session's High/Low/Close</b> — the standard intraday reference. Edit H/L/C to override. These are real OHLC-based levels (not Square-of-9 projections).</p>
+    <div className="panel"><div className="row">
+      <Field label="Method"><select value={mode} onChange={e=>setMode(e.target.value)}><option value="classic">Classic + CPR</option><option value="camarilla">Camarilla</option></select></Field>
+      <Field label="Prev High"><Num value={oH} onChange={setOH}/></Field>
+      <Field label="Prev Low"><Num value={oL} onChange={setOL}/></Field>
+      <Field label="Prev Close"><Num value={oC} onChange={setOC}/></Field>
+    </div>
+    <div className="mut" style={{fontSize:11}}>
+      {ref?`Reference session: ${ref.t} (H ${fmt(ref.h)} · L ${fmt(ref.l)} · C ${fmt(ref.c)})`:'No OHLC loaded — using anchor estimates.'}
+      {today?`  ·  Today (${today.t}) open ${fmt(today.o)} · last ${fmt(today.c)}`:''}
+    </div></div>
+    {mode==='classic'?
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+      <div className="panel"><h3>Classic Pivots</h3><table><tbody>
+        <tr><td className="l"><span className="tag res">R3</span></td><td>{fmt(piv.R3)}</td><td className="mut">{((piv.R3-cur)/cur*100).toFixed(2)}%</td></tr>
+        <tr><td className="l"><span className="tag res">R2</span></td><td>{fmt(piv.R2)}</td><td className="mut">{((piv.R2-cur)/cur*100).toFixed(2)}%</td></tr>
+        <tr><td className="l"><span className="tag res">R1</span></td><td>{fmt(piv.R1)}</td><td className="mut">{((piv.R1-cur)/cur*100).toFixed(2)}%</td></tr>
+        <tr><td className="l"><span className="tag card">P</span></td><td className="amb">{fmt(piv.P)}</td><td className="mut">pivot</td></tr>
+        <tr><td className="l"><span className="tag sup">S1</span></td><td>{fmt(piv.S1)}</td><td className="mut">{((piv.S1-cur)/cur*100).toFixed(2)}%</td></tr>
+        <tr><td className="l"><span className="tag sup">S2</span></td><td>{fmt(piv.S2)}</td><td className="mut">{((piv.S2-cur)/cur*100).toFixed(2)}%</td></tr>
+        <tr><td className="l"><span className="tag sup">S3</span></td><td>{fmt(piv.S3)}</td><td className="mut">{((piv.S3-cur)/cur*100).toFixed(2)}%</td></tr>
+      </tbody></table></div>
+      <div className="panel"><h3>Central Pivot Range (CPR)</h3><table><tbody>
+        <tr><td className="l">Top Central (TC)</td><td className="amb">{fmt(piv.TC)}</td></tr>
+        <tr><td className="l">Pivot (P)</td><td>{fmt(piv.P)}</td></tr>
+        <tr><td className="l">Bottom Central (BC)</td><td className="amb">{fmt(piv.BC)}</td></tr>
+        <tr><td className="l">CPR width</td><td className="cyn">{fmt(piv.cprWidth)}</td></tr>
+      </tbody></table>
+      <div className="note">Narrow CPR ⇒ trending day expected; wide CPR ⇒ rangebound. Current price {fmt(cur)} is {cur>piv.P?'above':'below'} the pivot.</div></div>
+    </div>
+    :
+    <div className="panel"><h3>Camarilla Levels</h3><table><tbody>
+      <tr><td className="l"><span className="tag res">H4</span> breakout</td><td>{fmt(cam.H4)}</td></tr>
+      <tr><td className="l"><span className="tag res">H3</span> reversal</td><td>{fmt(cam.H3)}</td></tr>
+      <tr><td className="l">H2</td><td>{fmt(cam.H2)}</td></tr>
+      <tr><td className="l">H1</td><td>{fmt(cam.H1)}</td></tr>
+      <tr><td className="l">L1</td><td>{fmt(cam.L1)}</td></tr>
+      <tr><td className="l">L2</td><td>{fmt(cam.L2)}</td></tr>
+      <tr><td className="l"><span className="tag sup">L3</span> reversal</td><td>{fmt(cam.L3)}</td></tr>
+      <tr><td className="l"><span className="tag sup">L4</span> breakout</td><td>{fmt(cam.L4)}</td></tr>
+    </tbody></table><div className="note">H3/L3 are the classic Camarilla reversal zone; H4/L4 are breakout triggers.</div></div>
+    }
+  </div>);
+}
+
 /* ===================== APP SHELL ===================== */
 function App(){
   const [ixKey,setIxKey]=useState('NSEI');
@@ -1452,6 +1568,12 @@ function App(){
   const hist=useMemo(()=>{const hd=data&&data[ixKey]&&data[ixKey].history;return (hd&&hd.length)?hd:genDemoHistory(ixKey,ix.anchor);},[data,ixKey,ix]);
   const liveHist=!!(data&&data[ixKey]&&data[ixKey].history&&data[ixKey].history.length);
   const setAnchor=(p,dstr)=>{if(p!=null&&!isNaN(p))setPrice(+p);if(dstr)setDateStr(dstr);};
+  const [fetching,setFetching]=useState(false);
+  const [fetchErr,setFetchErr]=useState('');
+  const doFetchLive=async(key)=>{const k=key||ixKey;setFetching(true);setFetchErr('');
+    try{const q=await fetchYahoo(INDICES[k].yahoo);setData(d=>Object.assign({},d||{},{[k]:q}));if(k===ixKey){setPrice(+q.price);setDateStr(q.date);}}
+    catch(e){setFetchErr('live blocked');}finally{setFetching(false);}};
+  useEffect(()=>{const hd=data&&data[ixKey]&&data[ixKey].history;if(!(hd&&hd.length))doFetchLive(ixKey);},[ixKey]);
 
   // try auto-load data.json (works when served over http)
   useEffect(()=>{fetch('./data.json').then(r=>r.ok?r.json():null).then(j=>{if(j)setData(j);}).catch(()=>{});},[]);
@@ -1475,9 +1597,10 @@ function App(){
 
   const live=data&&data[ixKey]&&data[ixKey].price;
   const renderTool=()=>{
-    const P={price,dt,ix,hist,setAnchor,isLive:liveHist};
+    const P={price,dt,ix,hist,setAnchor,isLive:liveHist,src:(data&&data[ixKey]&&data[ixKey].source)||null};
     switch(tool){
       case'chart':return<ChartPanel {...P}/>;
+      case'pivots':return<PivotsPanel {...P}/>;
       case'dash':return<Dashboard {...P}/>;
       case'sq9calc':return<Sq9Calc {...P}/>;
       case'sq9spiral':return<Sq9Wheel {...P}/>;
@@ -1547,8 +1670,9 @@ function App(){
       <Field label="Anchor price"><input type="number" value={price} step="any" style={{width:'120px'}} onChange={e=>setPrice(parseFloat(e.target.value))}/></Field>
       <Field label="Date"><input type="date" value={dateStr} onChange={e=>setDateStr(e.target.value)}/></Field>
       <button className="btn sm" onClick={()=>setDateStr(new Date().toISOString().slice(0,10))}>Today</button>
+      <button className="btn sm" onClick={()=>doFetchLive()} disabled={fetching} title="Fetch live OHLC from Yahoo via CORS proxy">{fetching?'… fetching':'⟳ Fetch live'}</button>
       <label className="btn sm" style={{cursor:'pointer'}} title="Load data.json (fetch_data.py) or an OHLC CSV">Load data / CSV<input type="file" accept=".json,.csv,application/json,text/csv" style={{display:'none'}} onChange={onFile}/></label>
-      <div className="datasrc"><span className={'led'+(live?' live':'')}></span>{live?'LIVE':'MANUAL'}</div>
+      <div className="datasrc"><span className={'led'+(live?' live':'')}></span>{fetching?'FETCHING…':live?'LIVE':'MANUAL'}{fetchErr?<span className="neg" style={{marginLeft:6}}>{fetchErr}</span>:null}</div>
     </div>
     <div className="main" style={{position:'relative'}}>
       <div className={'sidebar'+(sbOpen?'':' hidden')}>

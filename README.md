@@ -3,60 +3,55 @@
 A single-file, browser-based trading terminal implementing the **Gann** and
 **financial-astrology** tools from the Optuma knowledge base
 (https://www.optuma.com/kb/optuma/gann-and-astro), drawn directly on an
-interactive **candlestick chart** for six indices. Built in HTML + JSX
-(React via CDN). Live data via the Scrapling framework
-(https://github.com/anki1007/Scrapling).
+interactive **candlestick chart** for six indices. Built in HTML + JSX (React via CDN).
+
+Live demo: **https://anki1007.github.io/gann/**
 
 ## Run it
-**Double-click `GannAstroTerminal.html`** — opens in any modern browser.
+**Double-click `GannAstroTerminal.html`** (or `index.html`) — opens in any modern browser.
 No install, no build step. (First load fetches React + Babel from a CDN, so be online once.)
 
 ## Price Chart (the analysis workspace)
-The default view is a candlestick chart of the selected index with the tools drawn ON the price:
+Default view is a candlestick chart with the tools drawn ON the price:
 
-- **Click any candle** to set it as the pivot — the anchor price & date then drive EVERY tool.
-- Toggle overlays: **Sq9 Levels** (horizontal S/R), **Gann Fan** (rays from the pivot),
-  **Time Cycles** (vertical 30–360-day lines), **Planetary Lines** (price = longitude × factor),
-  **Moon Phases** (new/full markers), **Range Divisions** (1/8th retracements).
-- Crosshair readout, range selector (90–400 bars), and forward projection space for cycles & fans.
+- **Zoom:** mouse-wheel (anchored at the cursor) or the **+ / −** buttons.
+- **Pan / scroll:** click-drag the chart, or the **◀ / ▶** buttons. **⟲ Reset** restores the default view.
+- **Click any candle** to set the pivot — anchor price & date then drive EVERY tool.
+- Overlays: **Pivot Points** (real prev-session P/R1-3/S1-3 + CPR, on by default), **Sq9 Levels**,
+  **Gann Fan**, **Time Cycles**, **Planetary Lines**, **Moon Phases**, **Range Divisions**.
+- Crosshair + OHLC readout; shows today's open and previous-session close.
 
-Data: works out-of-the-box on a **seeded demo series** (badge shows DEMO). For real candles, run
-`fetch_data.py` or load your own **CSV** (`date,open,high,low,close`) via **Load data / CSV** in the top bar.
+## Pivot Points
+A dedicated **Pivot Points** tool (and chart overlay) computes the classic floor-trader pivots,
+**CPR** (Top/Bottom Central + width) and **Camarilla** levels from the **previous session's
+High/Low/Close** — the standard intraday reference, grounded in real OHLC (not Square-of-9 projections).
 
-## Layout
-Collapsible sidebar (◀ Hide / ▶ TOOLS) groups: Overview · Gann Tools · Astro Tools · Gann Charts.
-Top bar sets **Index**, **Anchor price**, **Date** — shared by all tools and the chart.
+## Data sources
+- **NSE indices** (Nifty 50 `NSEI`, Bank Nifty `NSEBANK`, Nifty 500 `CNX500`) → **jugaad-data**
+  (https://github.com/jugaad-py/jugaad-data), NSE-native and reliable.
+- **US indices** (Dow `DJIA`, Nasdaq 100 `NDX`, S&P 500 `SPX`) → **Yahoo Finance**.
 
-## Indices
-`NSEI` Nifty 50 · `NSEBANK` Bank Nifty · `CNX500` Nifty 500 · `DJIA` Dow Jones ·
-`NDX` Nasdaq 100 · `SPX` S&P 500.
+```bash
+pip install jugaad-data yfinance
+python fetch_data.py        # writes data.json: ~2y daily OHLC + latest quote per index
+```
+Serve the folder (`python -m http.server 8000`) so `data.json` auto-loads, or click
+**Load data / CSV** (accepts `date,open,high,low,close`). The chart badge shows the live source
+(`LIVE · jugaad-data` / `LIVE · yahoo`) or `DEMO DATA`.
 
-## Tools (57)
-**Gann (all 40 Optuma tools):** Square of 9 family (Calculator, Wheel, Static, Dynamic, Dates,
-Intervals, Gann Fan), Gann Fan/Angles (static + dynamic), Dynamic Gann Levels, Gann Box, Gann Squares,
-Hex Intervals, Wheel of 24, Divisions of 3rds/8ths (price + time), Measured/Single/High-Low/Zero
-degree lines, Zero Price Fan, Seven Times the Base, Triple Octave (price + time), Pyrapoint,
-Pattern of Vibration, Mass Pressure, Number Searcher, Day Count/Cycles, Time-Price Labels/Measure,
-Square Range/Marker family, Top/Bottom, Overlay, Pattern Matcher.
+**In-browser ⟳ Fetch live:** the hosted page also tries to pull live OHLC directly via a CORS proxy
+(works well for US/Yahoo; NSE in-browser is best-effort — for reliable NSE data run `fetch_data.py`,
+which uses jugaad-data). If a proxy is blocked the chart falls back to a seeded **DEMO** series.
 
-**Gann Charts:** The Square of Nine · The Square of Four · The Hexagon Chart · The Wheel of 24.
+> Note: after a redeploy, hard-refresh (Ctrl/Cmd+Shift+R) to bypass the GitHub Pages / browser cache.
 
-**Astro (core 7):** Ephemeris · Planetary Aspects (+grid) · Moon Phases · Planetary Retrograde ·
-Declination · Gann Planetary Lines · Square-of-9 Planetary Intervals.
-
-> A few Gann tools that are proprietary or need full price history — **Mass Pressure** (simplified
-> seasonal model), **Overlay Tool** (linear scaler), **Pattern Matcher** (placeholder) — are clearly
-> labelled inside the app rather than faked.
-
-## Live data (optional)
-    pip install "scrapling[fetchers]"
-    python fetch_data.py          # writes data.json: latest quote + 2y daily OHLC per index
-
-Then serve the folder (`python -m http.server 8000`) so `data.json` auto-loads, or click
-**Load data / CSV**. The chart badge shows **LIVE OHLC** when real candles are loaded, **DEMO DATA** otherwise.
+## Tools (58)
+**Gann (all 40 Optuma tools)** + 4 Gann charts, **Pivot Points**, and **Astro (core 7)**:
+Ephemeris, Planetary Aspects, Moon Phases, Retrograde, Declination, Gann Planetary Lines,
+Sq9 Planetary Intervals. A few proprietary/history-dependent tools (Mass Pressure, Overlay,
+Pattern Matcher) are clearly labelled rather than faked.
 
 ## Accuracy & disclaimer
-Planetary positions use Paul Schlyter's compact orbital-element method — geocentric ecliptic
-longitudes accurate to ~1–2 arc-minutes for the Sun and planets, a few arc-minutes for the Moon.
-Verified against equinox/solstice Sun longitudes and inner-planet elongation limits.
-For educational/analytical use only; markets carry risk and no technique guarantees outcomes.
+Planetary positions use Paul Schlyter's compact orbital-element method (~1–2 arc-minute accuracy
+for Sun/planets). For educational/analytical use only; markets carry risk and no technique
+guarantees outcomes.
