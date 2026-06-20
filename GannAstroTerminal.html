@@ -135,6 +135,7 @@
   ::-webkit-scrollbar-track{background:transparent;}
 
   /* === UI polish (added) === */
+  .btn.sm.on{border-color:var(--grn);color:var(--grn);background:var(--grn2);}
   .topbar{align-items:flex-end;}
   .topbar>.btn.sm:first-child{align-self:center;}
   .topbar .brand{align-self:center;}
@@ -237,7 +238,7 @@ function moonPhase(dt){
 function nextMoonEvents(dt,count=8){
   const targets=[0,90,180,270],labels={0:'New Moon',90:'First Quarter',180:'Full Moon',270:'Last Quarter'};
   const out=[];let t=new Date(dt.getTime());const stepH=2;let prev=moonPhase(t).elong;
-  const maxIter=Math.ceil(24*75/stepH);
+  const maxIter=Math.ceil(24*(count*8+20)/stepH);
   for(let i=0;i<maxIter&&out.length<count;i++){
     const t2=new Date(t.getTime()+stepH*3600*1000),cur=moonPhase(t2).elong;
     for(const tg of targets){let a=prev,b=cur;
@@ -590,7 +591,6 @@ function Sq9Wheel({price}){
 function GannFanPanel({price,ix}){
   const [scale,setScale]=useState(ix.scale);const [bars,setBars]=useState(30);const [up,setUp]=useState(true);
   useEffect(()=>setScale(ix.scale),[ix]);
-  useEffect(()=>{const el=chartWrapRef.current;if(!el||typeof ResizeObserver==='undefined')return;const ro=new ResizeObserver(es=>{for(const e of es){const w=Math.floor(e.contentRect.width);if(w>200)setCw(w);}});ro.observe(el);return ()=>ro.disconnect();},[]);
   const fan=useMemo(()=>gannFan(price,scale,bars,up),[price,scale,bars,up]);
   const prices=fan.map(f=>f.price).concat([price]);
   const pMin=Math.min(...prices),pMax=Math.max(...prices),pad=(pMax-pMin)*0.08||1;
@@ -945,7 +945,6 @@ function HexIntPanel({price,ix}){
 function GSquaresPanel({price,dt,ix}){
   const [N,setN]=useState(144);const [scale,setScale]=useState(ix.scale);
   useEffect(()=>setScale(ix.scale),[ix]);
-  useEffect(()=>{const el=chartWrapRef.current;if(!el||typeof ResizeObserver==='undefined')return;const ro=new ResizeObserver(es=>{for(const e of es){const w=Math.floor(e.contentRect.width);if(w>200)setCw(w);}});ro.observe(el);return ()=>ro.disconnect();},[]);
   const sq=useMemo(()=>gannSquares(price,N,scale,dt),[price,N,scale,dt]);
   return(<div>
     <h2 className="pg-head">Gann Squares <span className="sub">Square of {N}</span></h2>
@@ -1049,7 +1048,6 @@ function ZeroDegPanel({price,ix}){
 function ZeroPricePanel({ix}){
   const [scale,setScale]=useState(ix.scale);const [bars,setBars]=useState(40);
   useEffect(()=>setScale(ix.scale),[ix]);
-  useEffect(()=>{const el=chartWrapRef.current;if(!el||typeof ResizeObserver==='undefined')return;const ro=new ResizeObserver(es=>{for(const e of es){const w=Math.floor(e.contentRect.width);if(w>200)setCw(w);}});ro.observe(el);return ()=>ro.disconnect();},[]);
   const fan=useMemo(()=>zeroPriceFan(scale,bars),[scale,bars]);
   return(<div>
     <h2 className="pg-head">Zero Price Fan</h2>
@@ -1370,7 +1368,7 @@ function ChartPanel({price,dt,ix,hist,setAnchor,isLive,src}){
   const [offset,setOffset]=useState(0);
   const [dir,setDir]=useState('up');
   const [scale,setScale]=useState(ix.scale);
-  const [ov,setOv]=useState({pivots:true,sq9:false,fan:true,cycles:false,planets:false,moon:false,divs:false});
+  const [ov,setOv]=useState({pivots:true,sq9:false,fan:true,cycles:false,planets:false,moon:false,divs:false,aspects:false,retro:false});
   const [hover,setHover]=useState(null);
   const [grab,setGrab]=useState(false);
   const svgRef=React.useRef(null),dragRef=React.useRef({down:false}),viewRef=React.useRef({}),chartWrapRef=React.useRef(null);
@@ -1582,11 +1580,15 @@ function hlPivots(data){const n=data.length;const ref=n>=2?data[n-2]:(n?data[n-1
 function flFan(price,scale,dir,anchorT,futureT){const s=dir==='dn'?-1:1;return GANN_RATIOS.map(r=>({t1:anchorT,p1:price,t2:futureT,p2:price+s*scale*r.tpu*64,color:r.label==='1x1'?C_RES:C_FAN,w:r.label==='1x1'?2:1}));}
 function mkCycles(dt){return gannTimeCycles(dt,[30,45,60,90,120,180,270,360]).map(c=>({time:c.date.toISOString().slice(0,10),position:'belowBar',color:C_VIO,shape:'arrowUp',text:c.days+'d'}));}
 function hlPlanets(dt,price){const f=price/360;const b=_bandfn(price);const out=[];planetaryLines(dt,f,6,['Sun','Mercury','Venus','Mars','Jupiter','Saturn']).forEach(p=>{const inr=p.lines.find(l=>b(l.price));if(inr)out.push({price:inr.price,color:PCOLOR[p.name]||'#888',title:p.glyph+' '+p.name,dash:true});});return out;}
-function mkMoon(dt,data){if(!data.length)return[];const out=[];nextMoonEvents(new Date(data[0].t),40).forEach(e=>{if(e.label==='New Moon'||e.label==='Full Moon')out.push({time:e.date.toISOString().slice(0,10),position:'aboveBar',color:e.label==='Full Moon'?'#e8eef5':'#7d8aa0',shape:'circle',text:e.label==='Full Moon'?'FM':'NM'});});return out;}
+function mkMoon(dt,data){if(!data.length)return[];var span=(Date.parse(data[data.length-1].t)-Date.parse(data[0].t))/864e5;var cnt=Math.min(240,Math.ceil(span/7)+8);var out=[];nextMoonEvents(new Date(data[0].t),cnt).forEach(function(e){if(e.label==='New Moon'||e.label==='Full Moon')out.push({time:e.date.toISOString().slice(0,10),position:'aboveBar',color:e.label==='Full Moon'?'#e8eef5':'#7d8aa0',shape:'circle',text:e.label==='Full Moon'?'FM':'NM'});});return out;}
 function hlDivs(data){if(data.length<2)return[];const v=data.slice(-180);const hi=Math.max.apply(null,v.map(d=>d.h)),lo=Math.min.apply(null,v.map(d=>d.l));return priceDivision(hi,lo,EIGHTHS).map(l=>({price:l.price,color:l.frac===0.5?C_RES:C_MAG,title:l.label,dash:l.frac!==0.5}));}
 
+function tradingTimes(hist){return (hist&&hist.length)?hist.map(function(d){return d.t;}):[];}
+function snapToTimes(t,times){if(!times||!times.length)return t;if(times.indexOf(t)>=0)return t;var tt=Date.parse(t+'T00:00:00Z');var best=times[0],bd=Math.abs(Date.parse(best+'T00:00:00Z')-tt);for(var i=1;i<times.length;i++){var d=Math.abs(Date.parse(times[i]+'T00:00:00Z')-tt);if(d<bd){bd=d;best=times[i];}}return best;}
+function aspectMarkers(hist){var times=tradingTimes(hist);if(times.length<2)return [];var bodies=['Sun','Mercury','Venus','Mars','Jupiter','Saturn'];var hard={Conjunction:'\u260c',Square:'\u25a1',Opposition:'\u260d'};var cand={};times.forEach(function(t){var dd=new Date(t+'T12:00:00Z');aspects(dd,bodies).forEach(function(a){if(hard[a.aspect]&&a.orb<1.3){var key=a.a+'|'+a.b+'|'+a.aspect;(cand[key]=cand[key]||[]).push({orb:a.orb,time:t,glyph:hard[a.aspect]});}});});var out=[];Object.keys(cand).forEach(function(key){var arr=cand[key];var cl=[arr[0]];for(var i=1;i<=arr.length;i++){var cur=arr[i],prev=arr[i-1];if(cur&&(Date.parse(cur.time)-Date.parse(prev.time))<=25*864e5){cl.push(cur);}else{var bE=cl[0];cl.forEach(function(e){if(e.orb<bE.orb)bE=e;});out.push({time:bE.time,position:'aboveBar',color:'#f06a6a',shape:'circle',text:bE.glyph});cl=cur?[cur]:[];}}});return out;}
+function retroMarkers(hist){var times=tradingTimes(hist);if(times.length<2)return [];var bodies=['Mercury','Venus','Mars','Jupiter','Saturn'];var G={Mercury:'\u263f',Venus:'\u2640',Mars:'\u2642',Jupiter:'\u2643',Saturn:'\u2644'};var prev=null,out=[];times.forEach(function(t){var dd=dayNumberFromDate(new Date(t+'T12:00:00Z'));var sp={};bodies.forEach(function(b){sp[b]=rev180(positionAt(b,dd+1).lon-positionAt(b,dd).lon);});if(prev){bodies.forEach(function(b){if((prev[b]<0)!==(sp[b]<0)){var gr=sp[b]<0;out.push({time:t,position:'belowBar',color:gr?'#b98cff':'#36d399',shape:gr?'arrowDown':'arrowUp',text:G[b]+(gr?'\u211e':'D')});}});}prev=sp;});return out;}
 function LWChart({hist,spec,onAnchor,onReady,height}){
-  const wrapRef=React.useRef(null),chartRef=React.useRef(null),seriesRef=React.useRef(null),ovRef=React.useRef([]);
+  const wrapRef=React.useRef(null),chartRef=React.useRef(null),seriesRef=React.useRef(null),ovRef=React.useRef([]),timesRef=React.useRef([]);
   const [err,setErr]=useState('');
   const data=(hist&&hist.length)?hist:[];
   useEffect(()=>{
@@ -1602,6 +1604,7 @@ function LWChart({hist,spec,onAnchor,onReady,height}){
     const real=data.map(d=>({time:d.t,open:d.o,high:d.h,low:d.l,close:d.c}));
     const ws=data.length?bizRange(data[data.length-1].t,280).map(t=>({time:t})):[];
     try{series.setData(real.concat(ws));}catch(e){try{series.setData(real);}catch(e2){}}
+    timesRef.current=real.concat(ws).map(function(d){return d.time;});
     const setRecent=()=>{const n=real.length;try{chart.timeScale().setVisibleLogicalRange({from:Math.max(0,n-180),to:n+8});}catch(e){try{chart.timeScale().fitContent();}catch(e2){}}};
     setRecent();
     chartRef.current=chart;seriesRef.current=series;ovRef.current=[];
@@ -1620,7 +1623,7 @@ function LWChart({hist,spec,onAnchor,onReady,height}){
     const sp=spec||{};
     (sp.hlines||[]).forEach(l=>{if(!isFinite(l.price))return;try{const pl=series.createPriceLine({price:l.price,color:l.color||'#8aa',lineWidth:l.w||1,lineStyle:(l.dash&&LC.LineStyle)?LC.LineStyle.Dashed:(LC.LineStyle?LC.LineStyle.Solid:0),axisLabelVisible:true,title:l.title||''});ovRef.current.push({k:'pl',r:pl});}catch(e){}});
     (sp.flines||[]).forEach(f=>{try{const ls=chart.addLineSeries({color:f.color||'#48c6e8',lineWidth:f.w||1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});ls.setData([{time:f.t1,value:f.p1},{time:f.t2,value:f.p2}]);ovRef.current.push({k:'ls',r:ls});}catch(e){}});
-    try{series.setMarkers((sp.markers||[]).filter(m=>m&&m.time).slice().sort((a,b)=>a.time<b.time?-1:1));}catch(e){}
+    try{var TT=timesRef.current;var mk=(sp.markers||[]).filter(m=>m&&m.time).map(function(m){return Object.assign({},m,{time:snapToTimes(m.time,TT)});});mk.sort(function(a,b){return a.time<b.time?-1:1;});series.setMarkers(mk);}catch(e){}
   },[spec?JSON.stringify(spec):'',hist]);
   return(<div className="panel" style={{padding:6,position:'relative'}}>
     <div ref={wrapRef} style={{width:'100%',height:(height||460)+'px'}}></div>
@@ -1628,7 +1631,7 @@ function LWChart({hist,spec,onAnchor,onReady,height}){
   </div>);
 }
 
-const CHART_TOOLS=new Set(['sq9calc','statsq9','dynsq9','pivots','gannfan','dynfan','zeroprice','sq9fan','dynlevels','sq9int','measdeg','singledeg','hilodeg','zerodeg','seventimes','trioct','pyrapoint','vibration','gsquares','wheel24','hexint','div3','div8','pricediv','planetlines','sq9planet','sq9dates','timecycles','trioctt','moon','gannbox']);
+const CHART_TOOLS=new Set(['sq9calc','statsq9','dynsq9','pivots','gannfan','dynfan','zeroprice','sq9fan','dynlevels','sq9int','measdeg','singledeg','hilodeg','zerodeg','seventimes','trioct','pyrapoint','vibration','gsquares','wheel24','hexint','div3','div8','pricediv','planetlines','sq9planet','sq9dates','timecycles','trioctt','moon','gannbox','aspects','retro']);
 
 function buildToolSpec(id,ctx){
   const {price,dt,ix,hist}=ctx;const scale=ctx.scale||ix.scale;const X=_cx(ctx);const b=_bandfn(price);
@@ -1661,6 +1664,8 @@ function buildToolSpec(id,ctx){
     case 'timecycles': S.markers=mkCycles(dt);S.title='Gann Day Count';break;
     case 'trioctt': S.markers=tripleOctaveTime(dt,45).map(o=>({time:o.date.toISOString().slice(0,10),position:'belowBar',color:C_VIO,shape:'arrowUp',text:o.days+'d'}));S.title='Triple Octave Time';break;
     case 'moon': S.markers=mkMoon(dt,X.data);S.title='Moon Phases';break;
+    case 'aspects': S.markers=aspectMarkers(hist);S.title='Planetary Aspects (exact hard-aspect dates)';break;
+    case 'retro': S.markers=retroMarkers(hist);S.title='Retrograde Stations';break;
     case 'gannbox': {const p1=Math.round(price*0.92),p2=Math.round(price*1.08);S.hlines=[0,0.25,0.333,0.5,0.667,0.75,1].map(f=>({price:p1+(p2-p1)*f,color:f===0.5?C_RES:C_FAN,title:(f*100).toFixed(0)+'%'}));S.title='Gann Box';break;}
     default: return null;
   }}catch(e){return {hlines:[],flines:[],markers:[],title:''};}
@@ -1677,7 +1682,7 @@ function ToolChartView({id,price,dt,ix,hist,setAnchor,table}){
 
 function PriceChartView({price,dt,ix,hist,setAnchor,src,isLive}){
   const [scale,setScale]=useState(ix.scale);const [dir,setDir]=useState('up');
-  const [ov,setOv]=useState({pivots:true,sq9:false,fan:true,cycles:false,planets:false,moon:false,divs:false});
+  const [ov,setOv]=useState({pivots:true,sq9:false,fan:true,cycles:false,planets:false,moon:false,divs:false,aspects:false,retro:false});
   const apiRef=React.useRef(null);
   useEffect(()=>setScale(ix.scale),[ix]);
   const X=_cx({price,dt,hist});const data=X.data;const n=data.length;
@@ -1689,6 +1694,8 @@ function PriceChartView({price,dt,ix,hist,setAnchor,src,isLive}){
     if(ov.fan)s.flines=s.flines.concat(flFan(price,scale,dir,X.anchorT,X.futureT));
     if(ov.cycles)s.markers=s.markers.concat(mkCycles(dt));
     if(ov.moon)s.markers=s.markers.concat(mkMoon(dt,data));
+    if(ov.aspects)s.markers=s.markers.concat(aspectMarkers(data));
+    if(ov.retro)s.markers=s.markers.concat(retroMarkers(data));
     return s;},[price,dt,ix,hist,scale,dir,JSON.stringify(ov)]);
   const sr=useMemo(()=>sq9NearestSR(price,45),[price]);
   const ref=n>=2?data[n-2]:(n?data[n-1]:null);const today=n?data[n-1]:null;
@@ -1701,11 +1708,11 @@ function PriceChartView({price,dt,ix,hist,setAnchor,src,isLive}){
       <button className="btn sm" onClick={()=>{if(apiRef.current)apiRef.current.fit();}}>⟲ Reset zoom</button>
       <Field label="Fan scale (pts/bar)"><Num value={scale} onChange={setScale} w={84}/></Field>
       <Field label="Fan dir"><select value={dir} onChange={e=>setDir(e.target.value)}><option value="up">Rising ▲</option><option value="dn">Falling ▼</option></select></Field>
-      <button className="btn sm" onClick={()=>{if(today&&setAnchor)setAnchor(today.c,today.t);}}>Anchor → latest</button>
+      <button className="btn sm" onClick={()=>{if(ref&&setAnchor)setAnchor(ref.c,today.t);}}>Anchor → prev close</button>
       <div className="mut" style={{fontSize:11,marginLeft:'auto'}}>{today&&ref?('Today '+today.t+' open '+fmt(today.o)+' · prev close '+fmt(ref.c)):''}</div>
     </div>
     <div style={{marginTop:8}}><span className="mut" style={{marginRight:10,fontSize:11}}>OVERLAYS:</span>
-      <Chk k="pivots" label="Pivot Points" c="#ff9d3b"/><Chk k="sq9" label="Sq9 Levels" c="var(--amb)"/><Chk k="fan" label="Gann Fan" c="var(--cyn)"/><Chk k="divs" label="Range Divisions" c="var(--mag)"/><Chk k="planets" label="Planetary Lines" c="var(--grn)"/><Chk k="cycles" label="Time Cycles" c="var(--vio)"/><Chk k="moon" label="Moon Phases" c="#cdd9e5"/>
+      <Chk k="pivots" label="Pivot Points" c="#ff9d3b"/><Chk k="sq9" label="Sq9 Levels" c="var(--amb)"/><Chk k="fan" label="Gann Fan" c="var(--cyn)"/><Chk k="divs" label="Range Divisions" c="var(--mag)"/><Chk k="planets" label="Planetary Lines" c="var(--grn)"/><Chk k="cycles" label="Time Cycles" c="var(--vio)"/><Chk k="moon" label="Moon Phases" c="#cdd9e5"/><Chk k="aspects" label="Aspects" c="#f06a6a"/><Chk k="retro" label="Retrograde" c="#b98cff"/>
     </div></div>
     <LWChart hist={hist} spec={spec} onAnchor={setAnchor} onReady={(api)=>{apiRef.current=api;}} height={470}/>
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
@@ -1721,6 +1728,8 @@ function App(){
   const [ixKey,setIxKey]=useState('NSEI');
   const ix=INDICES[ixKey];
   const [price,setPrice]=useState(INDICES.NSEI.anchor);
+  const [anchorBasis,setAnchorBasis]=useState('prevclose');
+  const anchorFromHist=(basis,H)=>{if(!H||!H.length)return null;if(basis==='open')return{p:+H[H.length-1].o,d:H[H.length-1].t};if(H.length>=2)return{p:+H[H.length-2].c,d:H[H.length-1].t};return{p:+H[H.length-1].o,d:H[H.length-1].t};};
   const [dateStr,setDateStr]=useState(new Date().toISOString().slice(0,10));
   const [tool,setTool]=useState('chart');
   const [sbOpen,setSbOpen]=useState(true);
@@ -1733,7 +1742,7 @@ function App(){
   const [fetching,setFetching]=useState(false);
   const [fetchErr,setFetchErr]=useState('');
   const doFetchLive=async(key)=>{const k=key||ixKey;setFetching(true);setFetchErr('');
-    try{const q=await fetchYahoo(INDICES[k].yahoo);setData(d=>Object.assign({},d||{},{[k]:q}));if(k===ixKey){setPrice(+q.price);setDateStr(q.date);}}
+    try{const q=await fetchYahoo(INDICES[k].yahoo);setData(d=>Object.assign({},d||{},{[k]:q}));}
     catch(e){setFetchErr('live blocked');}finally{setFetching(false);}};
   useEffect(()=>{const hd=data&&data[ixKey]&&data[ixKey].history;if(!(hd&&hd.length))doFetchLive(ixKey);},[ixKey]);
 
@@ -1741,9 +1750,10 @@ function App(){
   useEffect(()=>{fetch('./data.json').then(r=>r.ok?r.json():null).then(j=>{if(j)setData(j);}).catch(()=>{});},[]);
   // when index changes, set price from live data if present else anchor placeholder
   useEffect(()=>{
-    if(data&&data[ixKey]&&data[ixKey].price){setPrice(+data[ixKey].price);}
+    const H=data&&data[ixKey]&&data[ixKey].history;
+    if(H&&H.length){const a=anchorFromHist(anchorBasis,H);if(a){setPrice(a.p);setDateStr(a.d);}}
     else setPrice(INDICES[ixKey].anchor);
-  },[ixKey,data]);
+  },[ixKey,data,anchorBasis]);
 
   const onFile=(e)=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
     r.onload=()=>{const txt=r.result;
@@ -1833,7 +1843,7 @@ function App(){
       <div className="tb-spacer"></div>
       <Field label="Index"><select value={ixKey} onChange={e=>setIxKey(e.target.value)}>
         {Object.entries(INDICES).map(([k,v])=><option key={k} value={k}>{k} · {v.name}</option>)}</select></Field>
-      <Field label="Anchor price"><input type="number" value={price} step="any" style={{width:'120px'}} onChange={e=>setPrice(parseFloat(e.target.value))}/></Field>
+      <Field label="Anchor price"><div style={{display:'flex',gap:4,alignItems:'center'}}><input type="number" value={price} step="any" style={{width:'104px'}} onChange={e=>setPrice(parseFloat(e.target.value))}/><button className={'btn sm'+(anchorBasis==='prevclose'?' on':'')} title="Anchor = previous session close (Gann S/R reference)" onClick={()=>setAnchorBasis('prevclose')}>Prev close</button><button className={'btn sm'+(anchorBasis==='open'?' on':'')} title="Anchor = today open" onClick={()=>setAnchorBasis('open')}>Today open</button></div></Field>
       <Field label="Date"><input type="date" value={dateStr} onChange={e=>setDateStr(e.target.value)}/></Field>
       <button className="btn sm" onClick={()=>setDateStr(new Date().toISOString().slice(0,10))}>Today</button>
       <button className="btn sm" onClick={()=>doFetchLive()} disabled={fetching} title="Fetch live OHLC from Yahoo via CORS proxy">{fetching?'… fetching':'⟳ Fetch live'}</button>
