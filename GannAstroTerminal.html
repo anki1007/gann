@@ -446,7 +446,7 @@ const TOOLS=[
     {id:'dynsq9',name:'Dynamic Square of 9',ic:'◍'},
     {id:'sq9fan',name:'Square of 9 Gann Fan',ic:'📏'},
     {id:'sq9int',name:'Square of 9 Intervals',ic:'⋮'},
-    {id:'gannfan',name:'Gann Fan / Angles',ic:'📐'},
+    {id:'gannfan',name:'Gann Fan Angles',ic:'📐'},
     {id:'dynfan',name:'Dynamic Gann Fan Angles',ic:'∠'},
     {id:'dynlevels',name:'Dynamic Gann Levels',ic:'≡'},
     {id:'gannbox',name:'Gann Box',ic:'▦'},
@@ -455,24 +455,24 @@ const TOOLS=[
     {id:'wheel24',name:'Static Wheel of 24',ic:'⊕'},
     {id:'div3',name:'Division of 3rds',ic:'⅓'},
     {id:'div8',name:'Division of 8ths',ic:'⅛'},
-    {id:'pricediv',name:'Price Division (3+8)',ic:'⊟'},
+    {id:'pricediv',name:'Price Division',ic:'⊟'},
     {id:'measdeg',name:'Gann Measured Degree Line',ic:'∡'},
     {id:'singledeg',name:'Gann Single Degree Line',ic:'／'},
     {id:'hilodeg',name:'High/Low Degree Angles',ic:'∢'},
     {id:'zerodeg',name:'Zero Degree Angles',ic:'⓪'},
     {id:'zeroprice',name:'Zero Price Fan',ic:'⟋'},
     {id:'seventimes',name:'Seven Times The Base',ic:'⑦'},
-    {id:'trioct',name:'Triple Octave S/R',ic:'♫'},
+    {id:'trioct',name:'Triple Octave Support and Resistance',ic:'♫'},
     {id:'pyrapoint',name:'Pyrapoint',ic:'▲'},
-    {id:'vibration',name:'Pattern of Vibration',ic:'〰'},
+    {id:'vibration',name:'Gann’s Pattern of Vibration',ic:'〰'},
     {id:'masspressure',name:'Gann Mass Pressure',ic:'🌊'},
     {id:'numsearch',name:'Number Searcher',ic:'#'},
     {id:'sq9dates',name:'Square of 9 Dates',ic:'📅'},
-    {id:'timecycles',name:'Gann Day Count / Cycles',ic:'↻'},
+    {id:'timecycles',name:'Gann Day Count',ic:'↻'},
     {id:'timediv',name:'Time Division (3+8)',ic:'⊞'},
     {id:'tdiv3',name:'Time Division of 3rds',ic:'⌗'},
     {id:'tdiv8',name:'Time Division of 8ths',ic:'⌗'},
-    {id:'trioctt',name:'Triple Octave Time S/R',ic:'♪'},
+    {id:'trioctt',name:'Triple Octave Time Support and Resistance Lines',ic:'♪'},
     {id:'tplabels',name:'Time Price Labels',ic:'🏷'},
     {id:'tpmeasure',name:'Time Price Measure',ic:'⤡'},
     {id:'sqrange',name:'Gann Square Range',ic:'▭'},
@@ -485,19 +485,29 @@ const TOOLS=[
     {id:'patternmatch',name:'Pattern Matcher',ic:'⧉'}
   ]},
   {group:'Astro Tools',items:[
-    {id:'ephem',name:'Ephemeris',ic:'✦'},
+    {id:'ephem',name:'Ephemeris Tool',ic:'✦'},
     {id:'aspects',name:'Planetary Aspects',ic:'✧'},
     {id:'moon',name:'Moon Phases',ic:'☾'},
     {id:'retro',name:'Planetary Retrograde',ic:'℞'},
     {id:'declin',name:'Declination',ic:'∡'},
     {id:'planetlines',name:'Gann Planetary Lines',ic:'≣'},
-    {id:'sq9planet',name:'Sq9 Planetary Intervals',ic:'❂'}
+    {id:'sq9planet',name:'Square of Nine Planetary Intervals',ic:'❂'},
+    {id:'plsigns',name:'Planetary Signs',ic:'♈'},
+    {id:'plspeed',name:'Planetary Speed',ic:'➤'},
+    {id:'pllat',name:'Planetary Latitudes',ic:'≈'},
+    {id:'plangles',name:'Planetary Angles',ic:'∡'},
+    {id:'signchg',name:'Planetary Sign Changes',ic:'⇄'},
+    {id:'synodic',name:'Synodic Cycles',ic:'☍'},
+    {id:'timebydeg',name:'Time By Planetary Degrees',ic:'⏱'},
+    {id:'apsides',name:'Apogee and Perigee',ic:'☾'},
+    {id:'eclipse',name:'Eclipse',ic:'🌑'}
   ]},
   {group:'Gann Charts',items:[
     {id:'csq9',name:'The Square of Nine',ic:'🌀'},
     {id:'csqfour',name:'The Square of Four',ic:'◳'},
     {id:'chexagon',name:'The Hexagon Chart',ic:'⬡'},
-    {id:'cwheel24',name:'The Wheel of 24',ic:'◴'}
+    {id:'cwheel24',name:'The Wheel of 24',ic:'◴'},
+    {id:'cephem',name:'Ephemeris Chart',ic:'📈'}
   ]},
   {group:'Info',items:[{id:'about',name:'About / Data Source',ic:'ⓘ'}]}
 ];
@@ -597,7 +607,7 @@ function GannFanPanel({price,ix}){
   const W=620,H=340,padL=8,padR=70;
   const yOf=p=>H-((p-(pMin-pad))/((pMax+pad)-(pMin-pad)))*H;
   return(<div>
-    <h2 className="pg-head">Gann Fan <span className="sub">/ Angles</span></h2>
+    <h2 className="pg-head">Gann Fan <span className="sub">Angles</span></h2>
     <p className="pg-desc">Gann angles project geometric support/resistance from a pivot. The 1×1 (45°) is the master angle — one unit of price per unit of time. Set the scale (price units per bar) to your chart, then read where each angle sits after N bars.</p>
     <div className="panel"><div className="row">
       <Field label="Pivot price"><span className="pricebox" style={{padding:'5px 0',display:'inline-block'}}>{fmtN(price,ix.dec)}</span></Field>
@@ -743,7 +753,7 @@ function EphemPanel({dt}){
   const [helio,setHelio]=useState(false);
   const eph=useMemo(()=>ephemeris(dt),[dt]);
   return(<div>
-    <h2 className="pg-head">Ephemeris</h2>
+    <h2 className="pg-head">Ephemeris Tool</h2>
     <p className="pg-desc">Geocentric planetary positions for the anchor date (00:00 UTC + your time). Longitude is along the ecliptic; the sign &amp; degree, declination, daily speed and retrograde state are computed from Schlyter's algorithms (≈arc-minute accuracy).</p>
     <div className="panel"><div className="row">
       <div className="mut">Date/time (UTC): <span className="cyn">{dt.toISOString().slice(0,16).replace('T',' ')}</span></div>
@@ -851,7 +861,7 @@ function Sq9PlanetPanel({price,dt,ix}){
   const [turns,setTurns]=useState(1);
   const data=useMemo(()=>sq9PlanetaryIntervals(price,dt,turns),[price,dt,turns]);
   return(<div>
-    <h2 className="pg-head">Sq9 Planetary Intervals</h2>
+    <h2 className="pg-head">Square of Nine Planetary Intervals</h2>
     <p className="pg-desc">Projects each planet's current longitude onto the Square of 9 around the anchor price — the price level whose Sq9 angle equals the planet's degree. This fuses astro timing with Gann price geometry.</p>
     <div className="panel"><div className="row">
       <Field label="Rotations ±"><select value={turns} onChange={e=>setTurns(+e.target.value)}>{[1,2,3].map(s=><option key={s} value={s}>{s}</option>)}</select></Field>
@@ -1078,7 +1088,7 @@ function TriOctPanel({price,ix}){
   const [base,setBase]=useState(Math.round(price*0.25));useEffect(()=>setBase(Math.round(price*0.25)),[price]);
   const rows=useMemo(()=>tripleOctave(base),[base]);
   return(<div>
-    <h2 className="pg-head">Triple Octave Support &amp; Resistance</h2>
+    <h2 className="pg-head">Triple Octave Support and Resistance</h2>
     <p className="pg-desc">Treats price like a musical scale: each octave doubles the base (×2, ×4, ×8), with 1/3 and 2/3 subdivisions inside each octave. Octave boundaries are strong long-term S/R.</p>
     <div className="panel"><div className="row"><Field label="Base"><Num value={base} onChange={setBase}/></Field><div className="mut">Anchor {fmtN(price,ix.dec)}</div></div></div>
     <div className="panel"><table><thead><tr><th>Octave</th><th>Division</th><th>Price</th></tr></thead><tbody>
@@ -1090,7 +1100,7 @@ function TriOctTimePanel({dt}){
   const [base,setBase]=useState(45);
   const rows=useMemo(()=>tripleOctaveTime(dt,base),[dt,base]);
   return(<div>
-    <h2 className="pg-head">Triple Octave Time S/R Lines</h2>
+    <h2 className="pg-head">Triple Octave Time Support and Resistance Lines</h2>
     <p className="pg-desc">The octave principle applied to time: a base day-count doubled across three octaves projects time-turning windows from the anchor date.</p>
     <div className="panel"><div className="row"><Field label="Base days"><Num value={base} onChange={setBase} w={90}/></Field><div className="mut">Anchor {fmtDate(dt)}</div></div></div>
     <div className="panel"><table><thead><tr><th>Octave</th><th>+Days</th><th className="l">Date</th><th>Day</th></tr></thead><tbody>
@@ -1219,7 +1229,7 @@ function VibrationPanel({price,ix}){
   useEffect(()=>setRate(Math.max(1,Math.round(price*0.01))),[price]);
   const rows=useMemo(()=>vibration(price,rate,8),[price,rate]);
   return(<div>
-    <h2 className="pg-head">Gann's Pattern of Vibration</h2>
+    <h2 className="pg-head">Gann’s Pattern of Vibration</h2>
     <p className="pg-desc">Gann held that each market vibrates at its own rate. Enter the vibration rate (points per step) to project the harmonic support/resistance grid above and below the anchor.</p>
     <div className="panel"><div className="row"><Field label="Vibration rate"><Num value={rate} onChange={setRate}/></Field><div className="mut">Anchor {fmtN(price,ix.dec)}</div></div></div>
     <div className="panel"><div className="scroll"><table><thead><tr><th>Step</th><th>Price</th><th>Harmonic</th></tr></thead><tbody>
@@ -1631,7 +1641,7 @@ function LWChart({hist,spec,onAnchor,onReady,height}){
   </div>);
 }
 
-const CHART_TOOLS=new Set(['sq9calc','statsq9','dynsq9','pivots','gannfan','dynfan','zeroprice','sq9fan','dynlevels','sq9int','measdeg','singledeg','hilodeg','zerodeg','seventimes','trioct','pyrapoint','vibration','gsquares','wheel24','hexint','div3','div8','pricediv','planetlines','sq9planet','sq9dates','timecycles','trioctt','moon','gannbox','aspects','retro']);
+const CHART_TOOLS=new Set(['sq9calc','statsq9','dynsq9','pivots','gannfan','dynfan','zeroprice','sq9fan','dynlevels','sq9int','measdeg','singledeg','hilodeg','zerodeg','seventimes','trioct','pyrapoint','vibration','gsquares','wheel24','hexint','div3','div8','pricediv','planetlines','sq9planet','sq9dates','timecycles','trioctt','moon','gannbox','aspects','retro','signchg','timebydeg','apsides','eclipse']);
 
 function buildToolSpec(id,ctx){
   const {price,dt,ix,hist}=ctx;const scale=ctx.scale||ix.scale;const X=_cx(ctx);const b=_bandfn(price);
@@ -1666,6 +1676,10 @@ function buildToolSpec(id,ctx){
     case 'moon': S.markers=mkMoon(dt,X.data);S.title='Moon Phases';break;
     case 'aspects': S.markers=aspectMarkers(hist);S.title='Planetary Aspects (exact hard-aspect dates)';break;
     case 'retro': S.markers=retroMarkers(hist);S.title='Retrograde Stations';break;
+    case 'signchg': {var Ra=_astroRange(dt,hist,1);S.markers=signChanges(Ra.st,Ra.dys,['Sun','Mercury','Venus','Mars','Jupiter','Saturn']).map(function(r){return{time:r.date.toISOString().slice(0,10),position:'belowBar',color:PCOLOR[r.body]||'#888',shape:'circle',text:(GLYPH[r.body]||'')+r.signGlyph};});S.title='Planetary Sign Changes';break;}
+    case 'timebydeg': S.markers=timeByDegrees(dt,'Sun',[30,45,60,90,120,144,180,270,360],520).map(function(r){return{time:r.date.toISOString().slice(0,10),position:'aboveBar',color:'#f5b942',shape:'arrowDown',text:r.deg+'°'};});S.title='Time By Planetary Degrees (Sun)';break;
+    case 'apsides': {var Rb=_astroRange(dt,hist,1);S.markers=moonApsides(Rb.st,Rb.dys).map(function(r){return{time:r.date.toISOString().slice(0,10),position:'belowBar',color:r.type==='Perigee'?'#f06a6a':'#48c6e8',shape:'circle',text:r.type==='Perigee'?'Pg':'Ap'};});S.title='Moon Apogee / Perigee';break;}
+    case 'eclipse': {var Rc=_astroRange(dt,hist,200);S.markers=eclipses(Rc.st,Rc.dys).map(function(r){return{time:r.date.toISOString().slice(0,10),position:'aboveBar',color:r.type==='Solar Eclipse'?'#f5b942':'#b98cff',shape:'circle',text:r.type==='Solar Eclipse'?'SoE':'LuE'};});S.title='Eclipses';break;}
     case 'gannbox': {const p1=Math.round(price*0.92),p2=Math.round(price*1.08);S.hlines=[0,0.25,0.333,0.5,0.667,0.75,1].map(f=>({price:p1+(p2-p1)*f,color:f===0.5?C_RES:C_FAN,title:(f*100).toFixed(0)+'%'}));S.title='Gann Box';break;}
     default: return null;
   }}catch(e){return {hlines:[],flines:[],markers:[],title:''};}
@@ -1722,6 +1736,133 @@ function PriceChartView({price,dt,ix,hist,setAnchor,src,isLive}){
     </div>
   </div>);
 }
+
+/* ===================== ASTRO EXPANSION (added) ===================== */
+function signChanges(startDt,days,bodies){
+  bodies=bodies||['Sun','Mercury','Venus','Mars','Jupiter','Saturn','Uranus','Neptune'];
+  var out=[],prev={};
+  for(var i=0;i<days;i++){var dt=new Date(startDt.getTime()+i*86400000);var d=dayNumberFromDate(dt);
+    bodies.forEach(function(b){var si=Math.floor(rev(positionAt(b,d).lon)/30);
+      if(prev[b]!=null&&si!==prev[b]&&((si-prev[b]+12)%12)===1){out.push({date:dt,body:b,glyph:GLYPH[b],sign:ZODIAC[si],signGlyph:ZGLYPH[si]});}
+      prev[b]=si;});}
+  return out;
+}
+function timeByDegrees(startDt,body,targets,maxDays){
+  body=body||'Sun';maxDays=maxDays||500;var sorted=targets.slice().sort(function(a,b){return a-b;});
+  var prevLon=positionAt(body,dayNumberFromDate(startDt)).lon,cum=0,ti=0,out=[];
+  for(var i=1;i<=maxDays&&ti<sorted.length;i++){var dt=new Date(startDt.getTime()+i*86400000);
+    var lon=positionAt(body,dayNumberFromDate(dt)).lon;cum+=rev180(lon-prevLon);prevLon=lon;
+    while(ti<sorted.length&&cum>=sorted[ti]){out.push({date:dt,deg:sorted[ti],body:body});ti++;}}
+  return out;
+}
+function moonApsides(startDt,days){
+  var r=[];for(var i=0;i<days;i++){var dt=new Date(startDt.getTime()+i*86400000);r.push({dt:dt,dist:positionAt('Moon',dayNumberFromDate(dt)).dist});}
+  var out=[];for(var j=2;j<r.length-2;j++){
+    if(r[j].dist>r[j-1].dist&&r[j].dist>=r[j+1].dist&&r[j].dist>r[j-2].dist)out.push({date:r[j].dt,type:'Apogee',dist:r[j].dist});
+    else if(r[j].dist<r[j-1].dist&&r[j].dist<=r[j+1].dist&&r[j].dist<r[j-2].dist)out.push({date:r[j].dt,type:'Perigee',dist:r[j].dist});}
+  return out;
+}
+function eclipses(startDt,days){
+  var evs=nextMoonEvents(startDt,Math.ceil(days/7)+4),out=[];
+  function sep(a,b){var x=Math.abs(rev(a-b));return Math.min(x,360-x);}
+  evs.forEach(function(e){if(e.label!=='New Moon'&&e.label!=='Full Moon')return;
+    if((e.date-startDt)/86400000>days)return;
+    var d=dayNumberFromDate(e.date),sun=positionAt('Sun',d).lon,node=rev(ELEMENTS.Moon(d).N);
+    var s=Math.min(sep(sun,node),sep(sun,node+180));var orb=e.label==='New Moon'?18.5:12.5;
+    if(s<orb)out.push({date:e.date,type:e.label==='New Moon'?'Solar Eclipse':'Lunar Eclipse',sep:s});});
+  return out;
+}
+function synodicCycles(dt){
+  var pairs=[['Sun','Mercury'],['Sun','Venus'],['Sun','Mars'],['Sun','Jupiter'],['Sun','Saturn'],['Venus','Mars'],['Mars','Jupiter'],['Jupiter','Saturn']];
+  var d0=dayNumberFromDate(dt);
+  return pairs.map(function(p){var a=positionAt(p[0],d0),b=positionAt(p[1],d0);
+    var sa=rev180(positionAt(p[0],d0+1).lon-a.lon),sb=rev180(positionAt(p[1],d0+1).lon-b.lon);
+    var rel=sa-sb,syn=rel!==0?360/Math.abs(rel):Infinity,sepd=rev(b.lon-a.lon);
+    return{pair:p[0]+'–'+p[1],sep:sepd,synodic:syn,glyphA:GLYPH[p[0]],glyphB:GLYPH[p[1]]};});
+}
+function _astroRange(dt,hist,pad){var st=(hist&&hist.length)?new Date(hist[0].t+'T12:00:00Z'):new Date(dt.getTime()-180*86400000);
+  var dys=(hist&&hist.length)?Math.round((Date.parse(hist[hist.length-1].t)-Date.parse(hist[0].t))/86400000)+(pad||1):360;return{st:st,dys:dys};}
+
+function PlanetSignsPanel({dt}){const eph=useMemo(()=>ephemeris(dt),[dt]);
+  return(<div><h2 className="pg-head">Planetary Signs</h2>
+    <p className="pg-desc">Zodiac sign, degree within the sign, and decan (10° subdivision) for each body at the selected date. Sign ingresses are classic Gann/astro timing points.</p>
+    <div className="panel"><table><thead><tr><th className="l">Body</th><th className="l">Sign</th><th>Degree</th><th>Decan</th><th>Motion</th></tr></thead><tbody>
+      {eph.map((p,i)=><tr key={i}><td className="l"><span className="glyph" style={{color:PCOLOR[p.name]}}>{p.glyph}</span> {p.name}</td>
+      <td className="l">{p.signGlyph} {p.sign}</td><td>{p.signDeg.toFixed(2)}°</td><td>{Math.floor(p.signDeg/10)+1}</td>
+      <td className={p.retro?'neg':'pos'}>{p.retro?'℞ Retro':'Direct'}</td></tr>)}</tbody></table></div></div>);}
+
+function PlanetSpeedPanel({dt}){const eph=useMemo(()=>ephemeris(dt),[dt]);
+  const mean={Sun:0.9856,Moon:13.176,Mercury:1.383,Venus:1.602,Mars:0.524,Jupiter:0.083,Saturn:0.0335,Uranus:0.0117,Neptune:0.006};
+  return(<div><h2 className="pg-head">Planetary Speed</h2>
+    <p className="pg-desc">Daily motion in ecliptic longitude (°/day). Speed near zero marks a station (direction change); above or below the mean shows fast and slow phases.</p>
+    <div className="panel"><table><thead><tr><th className="l">Body</th><th>Speed °/day</th><th>Mean</th><th>State</th><th>Motion</th></tr></thead><tbody>
+      {eph.map((p,i)=>{const m=mean[p.name]||0;const stat=Math.abs(p.speed)<m*0.1;
+      return<tr key={i}><td className="l"><span className="glyph" style={{color:PCOLOR[p.name]}}>{p.glyph}</span> {p.name}</td>
+      <td className={p.speed<0?'neg':'pos'}>{p.speed>=0?'+':''}{p.speed.toFixed(4)}</td><td className="mut">{m.toFixed(3)}</td>
+      <td>{stat?<span className="tag card">STATION</span>:(Math.abs(p.speed)>m?'Fast':'Slow')}</td>
+      <td className={p.retro?'neg':'pos'}>{p.retro?'℞ Retrograde':'Direct'}</td></tr>;})}</tbody></table></div></div>);}
+
+function PlanetLatPanel({dt}){const eph=useMemo(()=>ephemeris(dt),[dt]);
+  return(<div><h2 className="pg-head">Planetary Latitudes</h2>
+    <p className="pg-desc">Ecliptic latitude (degrees north or south of the ecliptic plane). Latitude extremes and 0° crossings (nodes) are used in some astro-timing methods.</p>
+    <div className="panel"><table><thead><tr><th className="l">Body</th><th>Latitude</th><th className="l">Hemisphere</th></tr></thead><tbody>
+      {eph.map((p,i)=><tr key={i}><td className="l"><span className="glyph" style={{color:PCOLOR[p.name]}}>{p.glyph}</span> {p.name}</td>
+      <td className={p.lat<0?'neg':'pos'}>{p.lat>=0?'+':''}{p.lat.toFixed(3)}°</td><td className="l mut">{Math.abs(p.lat)<0.01?'on ecliptic':(p.lat>0?'North':'South')}</td></tr>)}</tbody></table></div></div>);}
+
+function PlanetAnglesPanel({dt}){const bodies=['Sun','Mercury','Venus','Mars','Jupiter','Saturn'];const eph=useMemo(()=>ephemeris(dt,bodies),[dt]);
+  const rows=[];for(let i=0;i<eph.length;i++)for(let j=i+1;j<eph.length;j++){rows.push({a:eph[i],b:eph[j],sep:Math.abs(rev180(eph[i].lon-eph[j].lon))});}
+  return(<div><h2 className="pg-head">Planetary Angles</h2>
+    <p className="pg-desc">Geocentric angular separation between each planetary pair (0–180°). These angles underlie the aspects; round values (0/90/120/180) are the hard and soft aspects.</p>
+    <div className="panel"><div className="scroll"><table><thead><tr><th className="l">Pair</th><th>Separation</th><th className="l">Nearest aspect</th></tr></thead><tbody>
+      {rows.map((r,i)=>{const asp=[[0,'Conjunction','☌'],[60,'Sextile','⚹'],[90,'Square','□'],[120,'Trine','△'],[180,'Opposition','☍']].map(a=>({a:a,d:Math.abs(r.sep-a[0])})).sort((x,y)=>x.d-y.d)[0];
+      return<tr key={i}><td className="l"><span style={{color:PCOLOR[r.a.name]}}>{r.a.glyph}</span> {r.a.name} – <span style={{color:PCOLOR[r.b.name]}}>{r.b.glyph}</span> {r.b.name}</td>
+      <td>{r.sep.toFixed(2)}°</td><td className="l">{asp.a[2]} {asp.a[1]} <span className="mut">({asp.d.toFixed(1)}° orb)</span></td></tr>;})}</tbody></table></div></div></div>);}
+
+function SynodicPanel({dt}){const rows=useMemo(()=>synodicCycles(dt),[dt]);
+  return(<div><h2 className="pg-head">Synodic Cycles</h2>
+    <p className="pg-desc">The synodic period is the time for two planets to return to the same relative angle (conjunction to conjunction). These cycles are core to planetary-cycle market timing.</p>
+    <div className="panel"><table><thead><tr><th className="l">Pair</th><th>Current separation</th><th>Synodic period</th></tr></thead><tbody>
+      {rows.map((r,i)=><tr key={i}><td className="l">{r.glyphA} {r.pair}</td><td>{r.sep.toFixed(1)}°</td>
+      <td className="amb">{isFinite(r.synodic)?Math.round(r.synodic)+' days ('+(r.synodic/365.25).toFixed(2)+' yr)':'—'}</td></tr>)}</tbody></table></div></div>);}
+
+function SignChangesPanel({dt,hist}){const rows=useMemo(()=>{const R=_astroRange(dt,hist,1);return signChanges(R.st,R.dys,['Sun','Mercury','Venus','Mars','Jupiter','Saturn','Uranus','Neptune']);},[dt,hist]);
+  return(<div><h2 className="pg-head">Planetary Sign Changes</h2>
+    <p className="pg-desc">Dates each planet ingresses into a new zodiac sign across the loaded price range (markers on the chart above). Sign changes of slow planets often align with trend shifts.</p>
+    <div className="panel"><div className="scroll"><table><thead><tr><th className="l">Date</th><th className="l">Body</th><th className="l">Enters</th></tr></thead><tbody>
+      {rows.map((r,i)=><tr key={i}><td className="l cyn">{fmtDate(r.date)}</td><td className="l"><span style={{color:PCOLOR[r.body]}}>{r.glyph}</span> {r.body}</td><td className="l">{r.signGlyph} {r.sign}</td></tr>)}</tbody></table></div><div className="note">{rows.length} ingresses across the loaded range.</div></div></div>);}
+
+function TimeByDegPanel({dt}){const [body,setBody]=useState('Sun');const targets=[30,45,60,72,90,120,135,144,180,216,240,270,288,315,360];
+  const rows=useMemo(()=>timeByDegrees(dt,body,targets,520),[dt,body]);
+  return(<div><h2 className="pg-head">Time By Planetary Degrees</h2>
+    <p className="pg-desc">Calendar dates on which a chosen planet advances key Gann degrees (45, 90, 120, 144, 180…) from the anchor date — planetary time targets plotted on the chart above (Sun shown there).</p>
+    <div className="panel"><div className="row"><Field label="Planet"><select value={body} onChange={e=>setBody(e.target.value)}>{['Sun','Mercury','Venus','Mars','Jupiter','Saturn'].map(b=><option key={b} value={b}>{b}</option>)}</select></Field><div className="mut">From {fmtDate(dt)}</div></div></div>
+    <div className="panel"><div className="scroll"><table><thead><tr><th>Degrees</th><th className="l">Date</th><th>Calendar days</th></tr></thead><tbody>
+      {rows.map((r,i)=><tr key={i}><td className="amb">{r.deg}°</td><td className="l cyn">{fmtDate(r.date)}</td><td>{Math.round((r.date-dt)/86400000)}</td></tr>)}</tbody></table></div></div></div>);}
+
+function ApsidesPanel({dt,hist}){const rows=useMemo(()=>{const R=_astroRange(dt,hist,1);return moonApsides(R.st,R.dys);},[dt,hist]);
+  return(<div><h2 className="pg-head">Apogee and Perigee</h2>
+    <p className="pg-desc">The Moon's farthest (apogee) and nearest (perigee) points to Earth across the loaded range, plotted on the chart above. Lunar distance extremes are watched as short-cycle turning points.</p>
+    <div className="panel"><div className="scroll"><table><thead><tr><th className="l">Date</th><th className="l">Type</th><th>Distance (Earth radii)</th></tr></thead><tbody>
+      {rows.map((r,i)=><tr key={i}><td className="l cyn">{fmtDate(r.date)}</td><td className="l">{r.type==='Perigee'?<span className="tag res">Perigee</span>:<span className="tag sup">Apogee</span>}</td><td>{r.dist.toFixed(2)}</td></tr>)}</tbody></table></div></div></div>);}
+
+function EclipsePanel({dt,hist}){const rows=useMemo(()=>{const R=_astroRange(dt,hist,200);return eclipses(R.st,R.dys);},[dt,hist]);
+  return(<div><h2 className="pg-head">Eclipse</h2>
+    <p className="pg-desc">Approximate solar (New Moon near node) and lunar (Full Moon near node) eclipse dates around the loaded range, plotted on the chart above. Eclipses are major Gann/astro timing events.</p>
+    <div className="panel"><table><thead><tr><th className="l">Date</th><th className="l">Type</th><th>Node separation</th></tr></thead><tbody>
+      {rows.length?rows.map((r,i)=><tr key={i}><td className="l cyn">{fmtDate(r.date)}</td><td className="l"><span style={{color:r.type==='Solar Eclipse'?'var(--amb)':'var(--vio)'}}>{r.type==='Solar Eclipse'?'☉ Solar':'☽ Lunar'}</span></td><td className="mut">{r.sep.toFixed(1)}°</td></tr>):<tr><td colSpan="3" className="mut">No eclipses detected in this range.</td></tr>}</tbody></table><div className="note">Approximate — based on luni-solar node geometry, not full Besselian elements.</div></div></div>);}
+
+function EphemerisChartPanel({dt}){const bodies=['Sun','Mercury','Venus','Mars','Jupiter','Saturn'];const [days,setDays]=useState(365);
+  const data=useMemo(()=>{const arr=[];const start=new Date(dt.getTime()-days*0.5*86400000);const step=Math.max(1,Math.round(days/180));
+    for(let i=0;i<=days;i+=step){const d=dayNumberFromDate(new Date(start.getTime()+i*86400000));const row={};bodies.forEach(b=>row[b]=positionAt(b,d).lon);arr.push(row);}return arr;},[dt,days]);
+  const W=900,H=470,L=34,R=78,T=14,B=24;const xOf=i=>L+(W-L-R)*i/(data.length-1);const yOf=lon=>T+(H-T-B)*(1-lon/360);
+  return(<div><h2 className="pg-head">Ephemeris Chart</h2>
+    <p className="pg-desc">Geocentric ecliptic longitude (0–360°) of each planet over time. Where lines cross, planets are conjunct; 180° apart is opposition — a visual map of the planetary cycles.</p>
+    <div className="panel" style={{padding:'8px 12px'}}><div className="row" style={{marginBottom:6}}><Field label="Window (days)"><Num value={days} onChange={setDays} w={90}/></Field><div className="mut">Centred on {fmtDate(dt)}</div></div></div>
+    <div className="panel" style={{padding:6}}><svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{maxWidth:W+'px'}}>
+      {[0,90,180,270,360].map(g=><g key={g}><line x1={L} y1={yOf(g)} x2={W-R} y2={yOf(g)} stroke="var(--gridline)"/><text x={4} y={yOf(g)+3} fill="var(--dim)" fontSize="9">{g}°</text></g>)}
+      {bodies.map(b=>{const segs=[];let cur=[];for(let i=0;i<data.length;i++){if(i>0&&Math.abs(data[i][b]-data[i-1][b])>180){segs.push(cur);cur=[];}cur.push(xOf(i)+','+yOf(data[i][b]));}segs.push(cur);
+        return<g key={b}>{segs.map((s,si)=><polyline key={si} points={s.join(' ')} fill="none" stroke={PCOLOR[b]} strokeWidth="1.5"/>)}<text x={W-R+4} y={yOf(data[data.length-1][b])+3} fill={PCOLOR[b]} fontSize="10">{GLYPH[b]} {b}</text></g>;})}
+    </svg></div></div>);}
 
 /* ===================== APP SHELL ===================== */
 function App(){
@@ -1793,6 +1934,16 @@ function App(){
       case'declin':return<DeclinPanel {...P}/>;
       case'planetlines':return<PlanetLinesPanel {...P}/>;
       case'sq9planet':return<Sq9PlanetPanel {...P}/>;
+      case'plsigns':return<PlanetSignsPanel {...P}/>;
+      case'plspeed':return<PlanetSpeedPanel {...P}/>;
+      case'pllat':return<PlanetLatPanel {...P}/>;
+      case'plangles':return<PlanetAnglesPanel {...P}/>;
+      case'signchg':return<SignChangesPanel {...P}/>;
+      case'synodic':return<SynodicPanel {...P}/>;
+      case'timebydeg':return<TimeByDegPanel {...P}/>;
+      case'apsides':return<ApsidesPanel {...P}/>;
+      case'eclipse':return<EclipsePanel {...P}/>;
+      case'cephem':return<EphemerisChartPanel {...P}/>;
       case'about':return<About/>;
       case'statsq9':return<WithBanner text="Static — anchored to a fixed price; levels do not move."><Sq9Calc {...P}/></WithBanner>;
       case'dynsq9':return<WithBanner text="Dynamic — recomputes from your current anchor as price updates."><Sq9Calc {...P}/></WithBanner>;
