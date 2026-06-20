@@ -451,6 +451,7 @@ const TOOLS=[
     {id:'dynlevels',name:'Dynamic Gann Levels',ic:'≡'},
     {id:'gannbox',name:'Gann Box',ic:'▦'},
     {id:'gsquares',name:'Gann Squares',ic:'⊠'},
+    {id:'sq90',name:'Square of 90',ic:'◔'},
     {id:'hexint',name:'Dynamic Hex Intervals',ic:'⬡'},
     {id:'wheel24',name:'Static Wheel of 24',ic:'⊕'},
     {id:'div3',name:'Division of 3rds',ic:'⅓'},
@@ -507,7 +508,8 @@ const TOOLS=[
     {id:'csqfour',name:'The Square of Four',ic:'◳'},
     {id:'chexagon',name:'The Hexagon Chart',ic:'⬡'},
     {id:'cwheel24',name:'The Wheel of 24',ic:'◴'},
-    {id:'cephem',name:'Ephemeris Chart',ic:'📈'}
+    {id:'cephem',name:'Ephemeris Chart',ic:'📈'},
+    {id:'csq90',name:'The Square of 90',ic:'◔'}
   ]},
   {group:'Info',items:[{id:'about',name:'About / Data Source',ic:'ⓘ'}]}
 ];
@@ -1662,7 +1664,7 @@ function LWChart({hist,spec,onAnchor,onReady,height,dec}){
   </div>);
 }
 
-const CHART_TOOLS=new Set(['sq9calc','statsq9','dynsq9','pivots','gannfan','dynfan','zeroprice','sq9fan','dynlevels','sq9int','measdeg','singledeg','hilodeg','zerodeg','seventimes','trioct','pyrapoint','vibration','gsquares','wheel24','hexint','div3','div8','pricediv','planetlines','sq9planet','sq9dates','timecycles','trioctt','moon','gannbox','aspects','retro','signchg','timebydeg','apsides','eclipse']);
+const CHART_TOOLS=new Set(['sq9calc','statsq9','dynsq9','pivots','gannfan','dynfan','zeroprice','sq9fan','dynlevels','sq9int','measdeg','singledeg','hilodeg','zerodeg','seventimes','trioct','pyrapoint','vibration','gsquares','wheel24','hexint','div3','div8','pricediv','planetlines','sq9planet','sq9dates','timecycles','trioctt','moon','gannbox','aspects','retro','signchg','timebydeg','apsides','eclipse','sq90']);
 
 function buildToolSpec(id,ctx){
   const {price,dt,ix,hist}=ctx;const scale=ctx.scale||ix.scale;const X=_cx(ctx);const b=_bandfn(price);
@@ -1702,6 +1704,7 @@ function buildToolSpec(id,ctx){
     case 'apsides': {var Rb=_astroRange(dt,hist,1);S.markers=moonApsides(Rb.st,Rb.dys).map(function(r){return{time:r.date.toISOString().slice(0,10),position:'belowBar',color:r.type==='Perigee'?'#f06a6a':'#48c6e8',shape:'circle',text:r.type==='Perigee'?'Pg':'Ap'};});S.title='Moon Apogee / Perigee';break;}
     case 'eclipse': {var Rc=_astroRange(dt,hist,200);S.markers=eclipses(Rc.st,Rc.dys).map(function(r){return{time:r.date.toISOString().slice(0,10),position:'aboveBar',color:r.type==='Solar Eclipse'?'#f5b942':'#b98cff',shape:'circle',text:r.type==='Solar Eclipse'?'SoE':'LuE'};});S.title='Eclipses';break;}
     case 'gannbox': {const p1=Math.round(price*0.92),p2=Math.round(price*1.08);S.hlines=[0,0.25,0.333,0.5,0.667,0.75,1].map(f=>({price:p1+(p2-p1)*f,color:f===0.5?C_RES:C_FAN,title:(f*100).toFixed(0)+'%'}));S.title='Gann Box';break;}
+    case 'sq90': {var q90=square90Price(price);S.hlines=q90.map(function(p){return {price:p.up,color:p.col,title:p.deg+'\u00b0R'};}).concat(q90.map(function(p){return {price:p.dn,color:p.col,title:p.deg+'\u00b0S',dash:true};})).filter(function(l){return b(l.price);});S.markers=square90Time(dt,540).map(function(t){return {time:t.date.toISOString().slice(0,10),position:'belowBar',color:t.col,shape:'arrowUp',text:t.angle+'\u00b0'};});S.title='Square of 90 (quarters + time)';break;}
     default: return null;
   }}catch(e){return {hlines:[],flines:[],markers:[],title:''};}
   return S;
@@ -1885,6 +1888,56 @@ function EphemerisChartPanel({dt}){const bodies=['Sun','Mercury','Venus','Mars',
         return<g key={b}>{segs.map((s,si)=><polyline key={si} points={s.join(' ')} fill="none" stroke={PCOLOR[b]} strokeWidth="1.5"/>)}<text x={W-R+4} y={yOf(data[data.length-1][b])+3} fill={PCOLOR[b]} fontSize="10">{GLYPH[b]} {b}</text></g>;})}
     </svg></div></div>);}
 
+/* ===================== SQUARE OF 90 (added) ===================== */
+const SEASONS=[
+  {q:'1st Quarter',phase:'Accumulation',season:'Spring',col:'#36d399'},
+  {q:'2nd Quarter',phase:'Mark-Up',season:'Summer',col:'#f5b942'},
+  {q:'3rd Quarter',phase:'Distribution',season:'Autumn',col:'#ff9d3b'},
+  {q:'4th Quarter',phase:'Decline',season:'Winter',col:'#f06a6a'}
+];
+function quadrantOf(angle){var a=((angle%360)+360)%360;return SEASONS[Math.min(3,Math.floor(a/90))];}
+function square90Time(anchorDate,maxDeg){maxDeg=maxDeg||720;var out=[];for(var d=45;d<=maxDeg;d+=45){var q=quadrantOf(d);out.push({days:d,date:new Date(anchorDate.getTime()+d*86400000),angle:((d%360)+360)%360,cycle:Math.ceil(d/360),quad:q.q,phase:q.phase,season:q.season,col:q.col});}return out;}
+function square90Price(anchorPrice){var r=Math.sqrt(anchorPrice);var out=[];[45,90,135,180,225,270,315,360].forEach(function(deg){var q=quadrantOf(deg);out.push({deg:deg,up:Math.pow(r+deg/180,2),dn:Math.pow(Math.max(0,r-deg/180),2),quad:q.q,phase:q.phase,col:q.col});});return out;}
+function square90Grid(){var rows=sq9Spiral(11,1);return rows.map(function(row){return row.map(function(c){return (c&&c.val<=90)?c:null;});});}
+
+function Square90Panel({price,dt,ix}){
+  const tcyc=useMemo(()=>square90Time(dt,720),[dt]);
+  const plv=useMemo(()=>square90Price(price),[price]);
+  const fmt=v=>fmtN(v,ix.dec);
+  return(<div>
+    <h2 className="pg-head">Square of 90 <span className="sub">time &amp; seasonal quarters</span></h2>
+    <p className="pg-desc">Gann's master time wheel: the 360° circle split into four 90° quarters (seasons). From the anchor date and price, every 45°/90° marks a shift between Accumulation, Mark-Up, Distribution and Decline. Time counts plot as markers and the quarter price levels as lines on the chart above. 90° = reaction · 180° = reversal · 360° = renewal.</p>
+    <div className="cards">
+      {SEASONS.map((s,i)=><div key={i} className="card"><h4 style={{color:s.col}}>{(i*90)}°–{(i*90+90)}° · {s.q}</h4><div className="big" style={{fontSize:'15px',color:s.col}}>{s.phase}</div><div className="mut">{s.season}</div></div>)}
+    </div>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginTop:12}}>
+      <div className="panel"><h3>Time Cycle Projection (from {fmtDate(dt)})</h3><div className="scroll"><table><thead><tr><th>Angle</th><th>Days</th><th className="l">Date</th><th className="l">Quarter · Phase</th></tr></thead><tbody>
+        {tcyc.map((t,i)=><tr key={i}><td style={{color:t.col}}>{t.angle}°{t.cycle>1?(' ·C'+t.cycle):''}</td><td>{t.days}</td><td className="l cyn">{fmtDate(t.date)}</td><td className="l" style={{color:t.col}}>{t.quad} · {t.phase}</td></tr>)}
+      </tbody></table></div></div>
+      <div className="panel"><h3>Quarter Price Levels (from {fmt(price)})</h3><table><thead><tr><th>Angle</th><th>Resistance ↑</th><th>Support ↓</th><th className="l">Quarter</th></tr></thead><tbody>
+        {plv.map((p,i)=><tr key={i}><td style={{color:p.col}}>{p.deg}°</td><td className="amb">{fmt(p.up)}</td><td className="pos">{fmt(p.dn)}</td><td className="l" style={{color:p.col}}>{p.quad}</td></tr>)}
+      </tbody></table></div>
+    </div>
+    <div className="note">Watch for confluence where a time count and a price level share the same angle — the squaring of price &amp; time. “When time is up, change must come.”</div>
+  </div>);
+}
+
+function Square90Wheel({price}){
+  const grid=useMemo(()=>square90Grid(),[]);
+  const anchorCell=(((Math.round(price)-1)%90)+90)%90+1;
+  return(<div>
+    <h2 className="pg-head">The Square of 90 <span className="sub">master spiral · 1–90</span></h2>
+    <p className="pg-desc">Numbers 1–90 spiralled from the centre — one full 360° rotation divided into four 90° quarters. The cardinal cross (green) and 45° diagonals (cyan) are the quarter and eighth spokes; the amber cell marks the anchor's position on the wheel ({fmtN(anchorCell,0)} = price mod 90).</p>
+    <div className="panel"><div style={{overflow:'auto'}}><table className="spiral"><tbody>
+      {grid.map((row,ri)=><tr key={ri}>{row.map((c,ci)=>{if(!c)return<td key={ci}></td>;
+        var cls=c.val===anchorCell?'center':(c.onCardinal?'card':c.onDiagonal?'diag':'');
+        return<td key={ci} className={cls}>{c.val}</td>;})}</tr>)}
+    </tbody></table></div>
+    <div className="legend"><span><i className="sw" style={{background:'var(--amb)'}}></i>Anchor (price mod 90)</span><span><i className="sw" style={{background:'#0e2b22'}}></i>Cardinal cross · 90° quarters</span><span><i className="sw" style={{background:'#14233a'}}></i>45° diagonals · eighths</span></div>
+    </div>
+  </div>);
+}
+
 /* ===================== APP SHELL ===================== */
 function App(){
   const [ixKey,setIxKey]=useState('NSEI');
@@ -1974,6 +2027,8 @@ function App(){
       case'dynlevels':return<DynLevelsPanel {...P}/>;
       case'hexint':return<HexIntPanel {...P}/>;
       case'gsquares':return<GSquaresPanel {...P}/>;
+      case'sq90':return<Square90Panel {...P}/>;
+      case'csq90':return<WithBanner text="The Square of 90 — Gann's time & seasonal wheel."><Square90Wheel {...P}/></WithBanner>;
       case'wheel24':return<Wheel24Panel {...P}/>;
       case'div3':return<Div3Panel {...P}/>;
       case'div8':return<Div8Panel {...P}/>;
