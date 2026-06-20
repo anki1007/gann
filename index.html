@@ -514,6 +514,8 @@ const TOOLS=[
 function fmtN(x,dec=2){if(x==null||isNaN(x))return '–';return x.toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec});}
 function fmtDate(d){return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});}
 function fmtWk(d){return d.toLocaleDateString('en-GB',{weekday:'short'});}
+function fmtTimeIST(d){try{return d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'});}catch(e){return d.toISOString().slice(11,16);}}
+function fmtDateTimeIST(d){try{var p=new Intl.DateTimeFormat('en-CA',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Kolkata'}).formatToParts(d).reduce(function(o,x){o[x.type]=x.value;return o;},{});return p.year+'-'+p.month+'-'+p.day+' '+p.hour+':'+p.minute+' IST';}catch(e){return d.toISOString().slice(0,16).replace('T',' ');}}
 const Field=({label,children})=>(<div className="ctrl"><label>{label}</label>{children}</div>);
 const Num=({value,onChange,step,w})=>(<input type="number" value={value} step={step||'any'} style={{width:(w||100)+'px'}} onChange={e=>onChange(parseFloat(e.target.value))}/>);
 
@@ -754,9 +756,9 @@ function EphemPanel({dt}){
   const eph=useMemo(()=>ephemeris(dt),[dt]);
   return(<div>
     <h2 className="pg-head">Ephemeris Tool</h2>
-    <p className="pg-desc">Geocentric planetary positions for the anchor date (00:00 UTC + your time). Longitude is along the ecliptic; the sign &amp; degree, declination, daily speed and retrograde state are computed from Schlyter's algorithms (≈arc-minute accuracy).</p>
+    <p className="pg-desc">Geocentric planetary positions for the anchor date (positions at 12:00 UTC, displayed in IST). Longitude is along the ecliptic; the sign &amp; degree, declination, daily speed and retrograde state are computed from Schlyter's algorithms (≈arc-minute accuracy).</p>
     <div className="panel"><div className="row">
-      <div className="mut">Date/time (UTC): <span className="cyn">{dt.toISOString().slice(0,16).replace('T',' ')}</span></div>
+      <div className="mut">Date/time (IST): <span className="cyn">{fmtDateTimeIST(dt)}</span></div>
     </div>
     <div className="scroll" style={{marginTop:8}}><table><thead><tr><th className="l">Body</th><th>Longitude</th><th className="l">Sign</th><th>Decl.</th><th>Speed °/d</th><th>State</th><th>Dist (AU)</th></tr></thead><tbody>
       {eph.map((p,i)=><tr key={i}>
@@ -800,8 +802,8 @@ function MoonPanel({dt}){
     <div className="cards">
       <div className="card" style={{display:'flex',gap:16,alignItems:'center'}}><MoonIcon elong={mp.elong}/><div><div className="big" style={{fontSize:'16px'}}>{mp.phaseName}</div><div className="mut">{(mp.illum*100).toFixed(0)}% illuminated</div><div className="mut">Age {mp.age.toFixed(1)} days · elong {mp.elong.toFixed(1)}°</div></div></div>
     </div>
-    <div className="panel" style={{marginTop:14}}><h3>Upcoming Phase Events</h3><table><thead><tr><th className="l">Phase</th><th className="l">Date</th><th className="l">Time (UTC)</th><th>In</th></tr></thead><tbody>
-      {ev.map((e,i)=>{const days=(e.date-dt)/86400000;return<tr key={i}><td className="l">{e.label==='New Moon'?'🌑':e.label==='Full Moon'?'🌕':e.label==='First Quarter'?'🌓':'🌗'} {e.label}</td><td className="l">{fmtDate(e.date)}</td><td className="l mut">{e.date.toISOString().slice(11,16)}</td><td className="cyn">{days.toFixed(1)}d</td></tr>;})}
+    <div className="panel" style={{marginTop:14}}><h3>Upcoming Phase Events</h3><table><thead><tr><th className="l">Phase</th><th className="l">Date</th><th className="l">Time (IST)</th><th>In</th></tr></thead><tbody>
+      {ev.map((e,i)=>{const days=(e.date-dt)/86400000;return<tr key={i}><td className="l">{e.label==='New Moon'?'🌑':e.label==='Full Moon'?'🌕':e.label==='First Quarter'?'🌓':'🌗'} {e.label}</td><td className="l">{fmtDate(e.date)}</td><td className="l mut">{fmtTimeIST(e.date)}</td><td className="cyn">{days.toFixed(1)}d</td></tr>;})}
     </tbody></table></div>
   </div>);
 }
@@ -1597,9 +1599,16 @@ function tradingTimes(hist){return (hist&&hist.length)?hist.map(function(d){retu
 function snapToTimes(t,times){if(!times||!times.length)return t;if(times.indexOf(t)>=0)return t;var tt=Date.parse(t+'T00:00:00Z');var best=times[0],bd=Math.abs(Date.parse(best+'T00:00:00Z')-tt);for(var i=1;i<times.length;i++){var d=Math.abs(Date.parse(times[i]+'T00:00:00Z')-tt);if(d<bd){bd=d;best=times[i];}}return best;}
 function aspectMarkers(hist){var times=tradingTimes(hist);if(times.length<2)return [];var bodies=['Sun','Mercury','Venus','Mars','Jupiter','Saturn'];var hard={Conjunction:'\u260c',Square:'\u25a1',Opposition:'\u260d'};var cand={};times.forEach(function(t){var dd=new Date(t+'T12:00:00Z');aspects(dd,bodies).forEach(function(a){if(hard[a.aspect]&&a.orb<1.3){var key=a.a+'|'+a.b+'|'+a.aspect;(cand[key]=cand[key]||[]).push({orb:a.orb,time:t,glyph:hard[a.aspect]});}});});var out=[];Object.keys(cand).forEach(function(key){var arr=cand[key];var cl=[arr[0]];for(var i=1;i<=arr.length;i++){var cur=arr[i],prev=arr[i-1];if(cur&&(Date.parse(cur.time)-Date.parse(prev.time))<=25*864e5){cl.push(cur);}else{var bE=cl[0];cl.forEach(function(e){if(e.orb<bE.orb)bE=e;});out.push({time:bE.time,position:'aboveBar',color:'#f06a6a',shape:'circle',text:bE.glyph});cl=cur?[cur]:[];}}});return out;}
 function retroMarkers(hist){var times=tradingTimes(hist);if(times.length<2)return [];var bodies=['Mercury','Venus','Mars','Jupiter','Saturn'];var G={Mercury:'\u263f',Venus:'\u2640',Mars:'\u2642',Jupiter:'\u2643',Saturn:'\u2644'};var prev=null,out=[];times.forEach(function(t){var dd=dayNumberFromDate(new Date(t+'T12:00:00Z'));var sp={};bodies.forEach(function(b){sp[b]=rev180(positionAt(b,dd+1).lon-positionAt(b,dd).lon);});if(prev){bodies.forEach(function(b){if((prev[b]<0)!==(sp[b]<0)){var gr=sp[b]<0;out.push({time:t,position:'belowBar',color:gr?'#b98cff':'#36d399',shape:gr?'arrowDown':'arrowUp',text:G[b]+(gr?'\u211e':'D')});}});}prev=sp;});return out;}
-function LWChart({hist,spec,onAnchor,onReady,height}){
-  const wrapRef=React.useRef(null),chartRef=React.useRef(null),seriesRef=React.useRef(null),ovRef=React.useRef([]),timesRef=React.useRef([]);
-  const [err,setErr]=useState('');
+function LWChart({hist,spec,onAnchor,onReady,height,dec}){
+  const wrapRef=React.useRef(null),panelRef=React.useRef(null),chartRef=React.useRef(null),seriesRef=React.useRef(null),ovRef=React.useRef([]),timesRef=React.useRef([]),setRecentRef=React.useRef(null);
+  const [err,setErr]=useState('');const [legend,setLegend]=useState(null);const [fs,setFs]=useState(false);
+  const fmtP=(v)=>fmtN(v,(dec==null?2:dec));
+  const tscale=()=>chartRef.current&&chartRef.current.timeScale();
+  const zoom=(f)=>{const t=tscale();if(!t)return;const r=t.getVisibleLogicalRange();if(!r)return;const c=(r.from+r.to)/2,half=(r.to-r.from)/2*f;try{t.setVisibleLogicalRange({from:c-half,to:c+half});}catch(e){}};
+  const pan=(fr)=>{const t=tscale();if(!t)return;const r=t.getVisibleLogicalRange();if(!r)return;const w=(r.to-r.from)*fr;try{t.setVisibleLogicalRange({from:r.from+w,to:r.to+w});}catch(e){}};
+  const doReset=()=>{if(setRecentRef.current)setRecentRef.current();};
+  const doExpand=()=>{const el=panelRef.current;if(!el)return;try{if(!document.fullscreenElement){(el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el);}else{(document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document);}}catch(e){}};
+  useEffect(()=>{const hh=()=>setFs(!!document.fullscreenElement);document.addEventListener('fullscreenchange',hh);return ()=>document.removeEventListener('fullscreenchange',hh);},[]);
   const data=(hist&&hist.length)?hist:[];
   useEffect(()=>{
     const LC=(typeof window!=='undefined')&&window.LightweightCharts;const el=wrapRef.current;if(!el)return;
@@ -1623,6 +1632,8 @@ function LWChart({hist,spec,onAnchor,onReady,height}){
       if(t&&typeof t==='object'&&t.year)t=t.year+'-'+String(t.month).padStart(2,'0')+'-'+String(t.day).padStart(2,'0');else if(typeof t==='number')t=new Date(t*1000).toISOString().slice(0,10);
       if(p&&isFinite(p))onAnchor(+(+p).toFixed(2),t);};
     chart.subscribeClick(clickH);
+    setRecentRef.current=setRecent;
+    try{chart.subscribeCrosshairMove(function(param){if(!param||param.time==null||!param.seriesData){setLegend(null);return;}var d=param.seriesData.get(series);if(d&&d.open!=null){var t=param.time;if(t&&typeof t==='object'&&t.year)t=t.year+'-'+String(t.month).padStart(2,'0')+'-'+String(t.day).padStart(2,'0');setLegend({t:t,o:d.open,h:d.high,l:d.low,c:d.close});}else setLegend(null);});}catch(e){}
     return ()=>{try{chart.remove();}catch(e){}chartRef.current=null;seriesRef.current=null;};
   },[hist]);
   useEffect(()=>{
@@ -1635,8 +1646,18 @@ function LWChart({hist,spec,onAnchor,onReady,height}){
     (sp.flines||[]).forEach(f=>{try{const ls=chart.addLineSeries({color:f.color||'#48c6e8',lineWidth:f.w||1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});ls.setData([{time:f.t1,value:f.p1},{time:f.t2,value:f.p2}]);ovRef.current.push({k:'ls',r:ls});}catch(e){}});
     try{var TT=timesRef.current;var mk=(sp.markers||[]).filter(m=>m&&m.time).map(function(m){return Object.assign({},m,{time:snapToTimes(m.time,TT)});});mk.sort(function(a,b){return a.time<b.time?-1:1;});series.setMarkers(mk);}catch(e){}
   },[spec?JSON.stringify(spec):'',hist]);
-  return(<div className="panel" style={{padding:6,position:'relative'}}>
-    <div ref={wrapRef} style={{width:'100%',height:(height||460)+'px'}}></div>
+  const cbtn={background:'#11202e',border:'1px solid #24384c',color:'#9fb1c6',borderRadius:4,width:24,height:22,fontSize:12,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',lineHeight:1};
+  return(<div className="panel" ref={panelRef} style={{padding:6,position:'relative',height:fs?'100vh':'auto',width:fs?'100vw':'auto'}}>
+    <div style={{position:'absolute',top:10,right:12,zIndex:6,display:'flex',gap:4}}>
+      <button title="Zoom out" style={cbtn} onClick={()=>zoom(1.6)}>−</button>
+      <button title="Zoom in" style={cbtn} onClick={()=>zoom(0.6)}>+</button>
+      <button title="Pan left" style={cbtn} onClick={()=>pan(-0.3)}>◀</button>
+      <button title="Pan right" style={cbtn} onClick={()=>pan(0.3)}>▶</button>
+      <button title="Reset view" style={cbtn} onClick={doReset}>⟲</button>
+      <button title={fs?'Exit full screen':'Expand full screen'} style={cbtn} onClick={doExpand}>{fs?'✕':'⛶'}</button>
+    </div>
+    {legend?<div style={{position:'absolute',top:10,left:12,zIndex:6,fontSize:11,color:'#9fb1c6',background:'rgba(10,15,23,0.82)',padding:'3px 9px',borderRadius:4,border:'1px solid #1c2a3a',whiteSpace:'nowrap'}}><b style={{color:'#cdd9e5'}}>{legend.t}</b>{'  '}O <span style={{color:'#cdd9e5'}}>{fmtP(legend.o)}</span>{'  '}H <span style={{color:'#36d399'}}>{fmtP(legend.h)}</span>{'  '}L <span style={{color:'#f06a6a'}}>{fmtP(legend.l)}</span>{'  '}C <span style={{color:legend.c>=legend.o?'#36d399':'#f06a6a'}}>{fmtP(legend.c)}</span></div>:null}
+    <div ref={wrapRef} style={{width:'100%',height:fs?'calc(100vh - 14px)':((height||460)+'px')}}></div>
     {err?<div className="err" style={{padding:'6px 10px',fontSize:12}}>{err} Tables and Load data / CSV still work.</div>:null}
   </div>);
 }
@@ -1689,7 +1710,7 @@ function buildToolSpec(id,ctx){
 function ToolChartView({id,price,dt,ix,hist,setAnchor,table}){
   const spec=useMemo(()=>buildToolSpec(id,{price,dt,ix,hist}),[id,price,dt,ix,hist]);
   return(<div>
-    <LWChart hist={hist} spec={spec} onAnchor={setAnchor} height={400}/>
+    <LWChart hist={hist} spec={spec} onAnchor={setAnchor} height={400} dec={ix.dec}/>
     <div style={{marginTop:14}}>{table}</div>
   </div>);
 }
@@ -1728,7 +1749,7 @@ function PriceChartView({price,dt,ix,hist,setAnchor,src,isLive}){
     <div style={{marginTop:8}}><span className="mut" style={{marginRight:10,fontSize:11}}>OVERLAYS:</span>
       <Chk k="pivots" label="Pivot Points" c="#ff9d3b"/><Chk k="sq9" label="Sq9 Levels" c="var(--amb)"/><Chk k="fan" label="Gann Fan" c="var(--cyn)"/><Chk k="divs" label="Range Divisions" c="var(--mag)"/><Chk k="planets" label="Planetary Lines" c="var(--grn)"/><Chk k="cycles" label="Time Cycles" c="var(--vio)"/><Chk k="moon" label="Moon Phases" c="#cdd9e5"/><Chk k="aspects" label="Aspects" c="#f06a6a"/><Chk k="retro" label="Retrograde" c="#b98cff"/>
     </div></div>
-    <LWChart hist={hist} spec={spec} onAnchor={setAnchor} onReady={(api)=>{apiRef.current=api;}} height={470}/>
+    <LWChart hist={hist} spec={spec} onAnchor={setAnchor} onReady={(api)=>{apiRef.current=api;}} height={470} dec={ix.dec}/>
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
       <div className="panel"><h3>Anchor (pivot)</h3><table><tbody><tr><td className="l mut">Price</td><td className="pricebox">{fmt(price)}</td></tr><tr><td className="l mut">Date</td><td className="cyn">{fmtDate(dt)}</td></tr><tr><td className="l mut">√Price</td><td>{Math.sqrt(price).toFixed(3)}</td></tr></tbody></table></div>
       <div className="panel"><h3>Sq9 Resistance</h3><table><tbody>{sr.resistance.map((v,i)=><tr key={i}><td className="l"><span className="tag res">R{i+1}</span></td><td>{fmt(v)}</td></tr>)}</tbody></table></div>
@@ -1874,7 +1895,7 @@ function App(){
   const [dateStr,setDateStr]=useState(new Date().toISOString().slice(0,10));
   const [tool,setTool]=useState('chart');
   const [sbOpen,setSbOpen]=useState(true);
-  const [collapsed,setCollapsed]=useState({});
+  const [collapsed,setCollapsed]=useState(()=>{const o={};TOOLS.forEach(g=>{if(g.group!=='Overview')o[g.group]=true;});return o;});
   const [data,setData]=useState(null);
   const dt=useMemo(()=>new Date(dateStr+'T12:00:00Z'),[dateStr]);
   const hist=useMemo(()=>{const hd=data&&data[ixKey]&&data[ixKey].history;return (hd&&hd.length)?hd:genDemoHistory(ixKey,ix.anchor);},[data,ixKey,ix]);
