@@ -487,6 +487,15 @@ function majorSwing(hist,window){
   lows.forEach(l=>{if(!majorLow||l.price<majorLow.price)majorLow=l;});
   return {high:majorHigh,low:majorLow};
 }
+/* A "high" anchor (top) should fan/project downside (support); a "low" anchor (bottom) should
+   fan/project upside (resistance). Neutral bases (manual/prevclose/open) keep whatever the user set. */
+const HIGH_ANCHOR_BASES=new Set(['pdh','pwh','pmh','pqh','pyh','swingh']);
+const LOW_ANCHOR_BASES=new Set(['pdl','pwl','pml','pql','pyl','swingl']);
+function anchorFanDir(basis){
+  if(HIGH_ANCHOR_BASES.has(basis))return'dn';
+  if(LOW_ANCHOR_BASES.has(basis))return'up';
+  return null;
+}
 
 
 /* ===================== UI HELPERS ===================== */
@@ -880,9 +889,10 @@ function Sq9Wheel({price}){
     </div>
   </div>);
 }
-function GannFanPanel({price,ix}){
-  const [scale,setScale]=useState(ix.scale);const [bars,setBars]=useState(30);const [up,setUp]=useState(true);
+function GannFanPanel({price,ix,anchorBasis}){
+  const [scale,setScale]=useState(ix.scale);const [bars,setBars]=useState(30);const [up,setUp]=useState(()=>anchorFanDir(anchorBasis)!=='dn');
   useEffect(()=>setScale(ix.scale),[ix]);
+  useEffect(()=>{const d=anchorFanDir(anchorBasis);if(d)setUp(d!=='dn');},[anchorBasis]);
   const fan=useMemo(()=>gannFan(price,scale,bars,up),[price,scale,bars,up]);
   const prices=fan.map(f=>f.price).concat([price]);
   const pMin=Math.min(...prices),pMax=Math.max(...prices),pad=(pMax-pMin)*0.08||1;
@@ -1964,12 +1974,13 @@ const CHART_TOOLS=new Set(['sq9calc','statsq9','dynsq9','pivots','gannfan','dynf
 
 function buildToolSpec(id,ctx){
   const {price,dt,ix,hist}=ctx;const scale=ctx.scale||ix.scale;const X=_cx(ctx);const b=_bandfn(price);
+  const fanDir=anchorFanDir(ctx.anchorBasis)||'up';const fanSign=fanDir==='dn'?-1:1;
   const S={hlines:[],flines:[],markers:[],title:''};
   try{switch(id){
     case 'sq9calc':case 'statsq9':case 'dynsq9': S.hlines=hlSR(price);S.title='Square of 9 S/R';break;
     case 'pivots': S.hlines=hlPivots(X.data);S.title='Pivot Points';break;
-    case 'gannfan':case 'dynfan': S.flines=flFan(price,scale,'up',X.anchorT,X.futureT);S.title='Gann Fan';break;
-    case 'zeroprice': S.flines=GANN_RATIOS.map(r=>({t1:X.anchorT,p1:price*0.5,t2:X.futureT,p2:price*0.5+scale*r.tpu*64,color:r.label==='1x1'?C_RES:C_FAN,w:r.label==='1x1'?2:1}));S.title='Zero Price Fan';break;
+    case 'gannfan':case 'dynfan': S.flines=flFan(price,scale,fanDir,X.anchorT,X.futureT);S.title='Gann Fan';break;
+    case 'zeroprice': S.flines=GANN_RATIOS.map(r=>({t1:X.anchorT,p1:price*0.5,t2:X.futureT,p2:price*0.5+fanSign*scale*r.tpu*64,color:r.label==='1x1'?C_RES:C_FAN,w:r.label==='1x1'?2:1}));S.title='Zero Price Fan';break;
     case 'sq9fan': S.hlines=sq9GannFan(price).map(f=>({price:f.price,color:f.angle%90===0?C_RES:C_FAN,title:f.angle+'°'})).filter(l=>b(l.price));S.title='Sq9 Gann Fan';break;
     case 'dynlevels': {const r0=Math.sqrt(price),a=[];for(let nn=-6;nn<=6;nn++)a.push(Math.pow(r0+(nn*90)/180,2));S.hlines=a.map(v=>({price:v,color:v>price+1e-6?C_RES:v<price-1e-6?C_SUP:C_PIV,title:''})).filter(l=>b(l.price));S.title='Dynamic Gann Levels';break;}
     case 'sq9int': S.hlines=sq9Intervals(price,6).map(l=>({price:l.price,color:C_FAN,title:'t'+l.turn})).filter(l=>b(l.price));S.title='Sq9 Intervals';break;
@@ -2017,8 +2028,8 @@ function buildToolSpec(id,ctx){
   return S;
 }
 
-function ToolChartView({id,price,dt,ix,hist,setAnchor,table}){
-  const spec=useMemo(()=>buildToolSpec(id,{price,dt,ix,hist}),[id,price,dt,ix,hist]);
+function ToolChartView({id,price,dt,ix,hist,setAnchor,anchorBasis,table}){
+  const spec=useMemo(()=>buildToolSpec(id,{price,dt,ix,hist,anchorBasis}),[id,price,dt,ix,hist,anchorBasis]);
   return(<div>
     <LWChart hist={hist} spec={spec} onAnchor={setAnchor} height={400} dec={ix.dec}/>
     <div style={{marginTop:14}}>{table}</div>
@@ -2148,11 +2159,12 @@ function BayerRulesPanel({price,ix,hist}){
   </div>);
 }
 
-function PriceChartView({price,dt,ix,hist,setAnchor,src,isLive}){
-  const [scale,setScale]=useState(ix.scale);const [dir,setDir]=useState('up');
+function PriceChartView({price,dt,ix,hist,setAnchor,src,isLive,anchorBasis}){
+  const [scale,setScale]=useState(ix.scale);const [dir,setDir]=useState(()=>anchorFanDir(anchorBasis)||'up');
   const [ov,setOv]=useState({pivots:true,sq9:false,fan:true,cycles:false,planets:false,moon:false,divs:false,aspects:false,retro:false});
   const apiRef=React.useRef(null);
   useEffect(()=>setScale(ix.scale),[ix]);
+  useEffect(()=>{const d=anchorFanDir(anchorBasis);if(d)setDir(d);},[anchorBasis]);
   const X=_cx({price,dt,hist});const data=X.data;const n=data.length;
   const spec=useMemo(()=>{const s={hlines:[],flines:[],markers:[]};
     if(ov.pivots)s.hlines=s.hlines.concat(hlPivots(data));
@@ -2378,6 +2390,11 @@ function App(){
     if(!H||!H.length)return null;
     const lastT=H[H.length-1].t;
     if(basis==='open')return{p:+H[H.length-1].o,d:lastT};
+    if(basis==='pdh'||basis==='pdl'){
+      if(H.length<2)return null;
+      const ref=H[H.length-2];
+      return{p:basis==='pdh'?ref.h:ref.l,d:ref.t};
+    }
     if(/^p[wmqy][hl]$/.test(basis)){
       const period={w:'week',m:'month',q:'quarter',y:'year'}[basis[1]];
       const r=prevPeriodHighLow(H,period);
@@ -2434,9 +2451,9 @@ function App(){
 
   const live=data&&data[ixKey]&&data[ixKey].price;
   const renderTool=()=>{
-    const P={price,dt,ix,hist,setAnchor,isLive:liveHist,src:(data&&data[ixKey]&&data[ixKey].source)||null};
+    const P={price,dt,ix,hist,setAnchor,isLive:liveHist,src:(data&&data[ixKey]&&data[ixKey].source)||null,anchorBasis};
     if(tool==='chart')return<PriceChartView {...P}/>;
-    if(CHART_TOOLS.has(tool))return<ToolChartView id={tool} price={price} dt={dt} ix={ix} hist={hist} setAnchor={setAnchor} table={renderTable(tool,P)}/>;
+    if(CHART_TOOLS.has(tool))return<ToolChartView id={tool} price={price} dt={dt} ix={ix} hist={hist} setAnchor={setAnchor} anchorBasis={anchorBasis} table={renderTable(tool,P)}/>;
     return renderTable(tool,P);
   };
   function renderTable(tool,P){
@@ -2533,6 +2550,8 @@ function App(){
           <option value="manual">Manual</option>
           <option value="prevclose">Prev Close</option>
           <option value="open">Today Open</option>
+          <option value="pdh">Prev Day High</option>
+          <option value="pdl">Prev Day Low</option>
           <option value="pwh">Prev Week High</option>
           <option value="pwl">Prev Week Low</option>
           <option value="pmh">Prev Month High</option>
