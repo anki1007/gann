@@ -25,10 +25,26 @@ Default view is a candlestick chart with the tools drawn ON the price:
 A dedicated **Pivot Points** tool (and chart overlay) computes the classic floor-trader pivots,
 **CPR** (Top/Bottom Central + width) and **Camarilla** levels from the **previous session's
 High/Low/Close** — the standard intraday reference, grounded in real OHLC (not Square-of-9 projections).
+An **Extended** mode projects **R1–R10 / S1–S10**; the Square-of-9 nearest-S/R tables (chart panel &
+Sq9 Calculator) are likewise extended to 10 levels each side.
+
+## Anchor points
+The top-bar **Anchor price** dropdown resolves the pivot from the loaded price history: **Prev Close**,
+**Today Open**, **Prev Week/Month/Quarter/Year High & Low**, and **Major Swing High/Low** (the largest
+confirmed fractal swing in the loaded range), alongside manual entry.
+
+## Bayer Rules
+A dedicated sidebar section scans the loaded price history against a curated set of testable rules
+paraphrased from George Bayer's *Handbook on Trend Determination — Astrological Rules for Traders*
+(planetary stations, conjunctions and sign ingresses). Matches are marked on the chart (vertical
+markers + a horizontal line at each trigger's close) with a below-chart table grouping recurring
+triggers by rule/parameter.
 
 ## Data sources
-- **NSE indices** (Nifty 50 `NSEI`, Bank Nifty `NSEBANK`, Nifty 500 `CNX500`) → **jugaad-data**
-  (https://github.com/jugaad-py/jugaad-data), NSE-native and reliable.
+- **NSE indices & F&O stocks** (219 symbols ingested from `fno.csv`, including Nifty 50 `NSEI`,
+  Bank Nifty `NSEBANK`, Nifty 500 `CNX500`, Finnifty, Nifty Midcap Select, Nifty Next 50, and 210
+  individual F&O stocks) → **jugaad-data** (https://github.com/jugaad-py/jugaad-data) for the core
+  indices, **Yahoo Finance** in-browser for the rest.
 - **US indices** (Dow `DJIA`, Nasdaq 100 `NDX`, S&P 500 `SPX`) → **Yahoo Finance**.
 
 ```bash
@@ -45,11 +61,11 @@ which uses jugaad-data). If a proxy is blocked the chart falls back to a seeded 
 
 > Note: after a redeploy, hard-refresh (Ctrl/Cmd+Shift+R) to bypass the GitHub Pages / browser cache.
 
-## Tools (58)
-**Gann (all 40 Optuma tools)** + 4 Gann charts, **Pivot Points**, and **Astro (core 7)**:
-Ephemeris, Planetary Aspects, Moon Phases, Retrograde, Declination, Gann Planetary Lines,
-Sq9 Planetary Intervals. A few proprietary/history-dependent tools (Mass Pressure, Overlay,
-Pattern Matcher) are clearly labelled rather than faked.
+## Tools (59)
+**Gann (all 40 Optuma tools)** + 4 Gann charts, **Pivot Points** (classic + extended R1-R10/S1-S10),
+**Astro (core 7)**: Ephemeris, Planetary Aspects, Moon Phases, Retrograde, Declination, Gann Planetary
+Lines, Sq9 Planetary Intervals — and the **Bayer Rules** scanner. A few proprietary/history-dependent
+tools (Mass Pressure, Overlay, Pattern Matcher) are clearly labelled rather than faked.
 
 ## Accuracy & disclaimer
 Planetary positions use Paul Schlyter's compact orbital-element method (~1–2 arc-minute accuracy

@@ -273,11 +273,11 @@ function sq9Levels(P,step=45,turns=2){
     out.push({angle:ang,cardinal:(rev(ang)%90===0),price:root*root,deltaPct:(root*root-P)/P*100});}
   return out;
 }
-function sq9NearestSR(P,step=45){
+function sq9NearestSR(P,step=45,count=10){
   const root0=Math.sqrt(P),below=[],above=[];
-  for(let n=-16;n<=16;n++){const root=root0+(n*step)/180;if(root<=0)continue;const v=root*root;if(v<P-1e-9)below.push(v);else if(v>P+1e-9)above.push(v);}
+  for(let n=-24;n<=24;n++){const root=root0+(n*step)/180;if(root<=0)continue;const v=root*root;if(v<P-1e-9)below.push(v);else if(v>P+1e-9)above.push(v);}
   below.sort((a,b)=>b-a);above.sort((a,b)=>a-b);
-  return{support:below.slice(0,4),resistance:above.slice(0,4)};
+  return{support:below.slice(0,count),resistance:above.slice(0,count)};
 }
 function sq9Spiral(size=15,center=1){
   const cells={};let x=0,y=0;cells['0,0']=1;let leg=1,num=1;const dirs=[[1,0],[0,1],[-1,0],[0,-1]];let di=0;
@@ -425,17 +425,294 @@ function camarillaLevels(H,L,C){
   return {H4:C+r*1.1/2,H3:C+r*1.1/4,H2:C+r*1.1/6,H1:C+r*1.1/12,
           L1:C-r*1.1/12,L2:C-r*1.1/6,L3:C-r*1.1/4,L4:C-r*1.1/2};
 }
+/* Extended floor pivots: classic R1-R3/S1-S3, then R4-R10/S4-S10 project the same (H-L) range step beyond R3/S3 */
+function extendedPivots(H,L,C,count){
+  count=count||10;
+  const base=pivotLevels(H,L,C);
+  const R=[base.R1,base.R2,base.R3],S=[base.S1,base.S2,base.S3];
+  const range=H-L;
+  for(let n=4;n<=count;n++){R.push(R[n-2]+range);S.push(S[n-2]-range);}
+  return {P:base.P,BC:base.BC,TC:base.TC,cprWidth:base.cprWidth,R,S};
+}
+/* ISO-week / month / quarter / year bucket key for a 'YYYY-MM-DD' date string */
+function periodKey(dateStr,period){
+  const d=new Date(dateStr+'T00:00:00Z');
+  if(period==='week'){
+    const dt=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()));
+    const day=(dt.getUTCDay()+6)%7;dt.setUTCDate(dt.getUTCDate()-day+3);
+    const firstThu=new Date(Date.UTC(dt.getUTCFullYear(),0,4));
+    const fdOff=(firstThu.getUTCDay()+6)%7;
+    const week=1+Math.round(((dt-firstThu)/86400000-3+fdOff)/7);
+    return dt.getUTCFullYear()+'-W'+String(week).padStart(2,'0');
+  }
+  if(period==='month')return dateStr.slice(0,7);
+  if(period==='quarter')return d.getUTCFullYear()+'-Q'+(Math.floor(d.getUTCMonth()/3)+1);
+  if(period==='year')return String(d.getUTCFullYear());
+  return dateStr;
+}
+/* High/Low of the most recent COMPLETE prior week/month/quarter/year in a history array */
+function prevPeriodHighLow(hist,period){
+  if(!hist||!hist.length)return null;
+  const groups={},order=[];
+  hist.forEach(bar=>{const k=periodKey(bar.t,period);if(!groups[k]){groups[k]=[];order.push(k);}groups[k].push(bar);});
+  const lastKey=periodKey(hist[hist.length-1].t,period);
+  const idx=order.lastIndexOf(lastKey);
+  if(idx<=0)return null;
+  const bars=groups[order[idx-1]];
+  let hiBar=bars[0],loBar=bars[0];
+  bars.forEach(b=>{if(b.h>hiBar.h)hiBar=b;if(b.l<loBar.l)loBar=b;});
+  return {high:hiBar.h,low:loBar.l,highDate:hiBar.t,lowDate:loBar.t,periodKey:order[idx-1]};
+}
+/* Fractal swing points: a bar whose high/low is the most extreme within `window` bars either side */
+function findSwingPoints(hist,window){
+  window=window||5;const highs=[],lows=[];
+  if(!hist)return{highs,lows};
+  for(let i=window;i<hist.length-window;i++){
+    const cur=hist[i];let isHigh=true,isLow=true;
+    for(let k=1;k<=window;k++){
+      if(hist[i-k].h>=cur.h||hist[i+k].h>=cur.h)isHigh=false;
+      if(hist[i-k].l<=cur.l||hist[i+k].l<=cur.l)isLow=false;
+      if(!isHigh&&!isLow)break;
+    }
+    if(isHigh)highs.push({t:cur.t,price:cur.h,idx:i});
+    if(isLow)lows.push({t:cur.t,price:cur.l,idx:i});
+  }
+  return {highs,lows};
+}
+/* Major swing = the single largest-magnitude confirmed fractal high/low across the loaded history */
+function majorSwing(hist,window){
+  const {highs,lows}=findSwingPoints(hist,window||5);
+  let majorHigh=null,majorLow=null;
+  highs.forEach(h=>{if(!majorHigh||h.price>majorHigh.price)majorHigh=h;});
+  lows.forEach(l=>{if(!majorLow||l.price<majorLow.price)majorLow=l;});
+  return {high:majorHigh,low:majorLow};
+}
 
 
 /* ===================== UI HELPERS ===================== */
 const {useState,useEffect,useMemo}=React;
 const INDICES={
-  NSEI:{name:'Nifty 50',region:'India',yahoo:'^NSEI',anchor:25000,scale:25,dec:2},
-  NSEBANK:{name:'Bank Nifty',region:'India',yahoo:'^NSEBANK',anchor:56000,scale:50,dec:2},
-  CNX500:{name:'Nifty 500',region:'India',yahoo:'^CRSLDX',anchor:23000,scale:20,dec:2},
-  DJIA:{name:'Dow Jones',region:'US',yahoo:'^DJI',anchor:43000,scale:40,dec:2},
-  NDX:{name:'Nasdaq 100',region:'US',yahoo:'^NDX',anchor:22000,scale:20,dec:2},
-  SPX:{name:'S&P 500',region:'US',yahoo:'^GSPC',anchor:6000,scale:6,dec:2}
+  NSEI:{name:'Nifty 50',region:'India',yahoo:'^NSEI',anchor:25000,scale:25,dec:2,kind:'index'},
+  NSEBANK:{name:'Bank Nifty',region:'India',yahoo:'^NSEBANK',anchor:56000,scale:50,dec:2,kind:'index'},
+  CNX500:{name:'Nifty 500',region:'India',yahoo:'^CRSLDX',anchor:23000,scale:20,dec:2,kind:'index'},
+  DJIA:{name:'Dow Jones',region:'US',yahoo:'^DJI',anchor:43000,scale:40,dec:2,kind:'index'},
+  NDX:{name:'Nasdaq 100',region:'US',yahoo:'^NDX',anchor:22000,scale:20,dec:2,kind:'index'},
+  SPX:{name:'S&P 500',region:'US',yahoo:'^GSPC',anchor:6000,scale:6,dec:2,kind:'index'},
+  /* ---- fno.csv indices (added) ---- */
+  "FINNIFTY":{name:"Finnifty",region:"India",yahoo:"NIFTY_FIN_SERVICE.NS",anchor:25000,scale:25,dec:2,kind:"index"},
+  "MIDCPNIFTY":{name:"Nifty Midcap Select",region:"India",yahoo:"NIFTY_MID_SELECT.NS",anchor:25000,scale:25,dec:2,kind:"index"},
+  "NIFTYNXT50":{name:"Nifty Next 50",region:"India",yahoo:"^NSMIDCP",anchor:25000,scale:25,dec:2,kind:"index"},
+  /* ---- fno.csv F&O stocks (added) ---- */
+  "360ONE":{name:"360 One WAM",region:"India",yahoo:"360ONE.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ABB":{name:"ABB",region:"India",yahoo:"ABB.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ABCAPITAL":{name:"Aditya Birla Capital",region:"India",yahoo:"ABCAPITAL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ADANIENSOL":{name:"Adani Energy Solutions",region:"India",yahoo:"ADANIENSOL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ADANIENT":{name:"Adani Enterprises",region:"India",yahoo:"ADANIENT.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ADANIGREEN":{name:"Adani Green Energy",region:"India",yahoo:"ADANIGREEN.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ADANIPORTS":{name:"Adani Ports & SEZ",region:"India",yahoo:"ADANIPORTS.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ADANIPOWER":{name:"Adani Power",region:"India",yahoo:"ADANIPOWER.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ALKEM":{name:"Alkem Laboratories",region:"India",yahoo:"ALKEM.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "AMBER":{name:"Amber Enterprises",region:"India",yahoo:"AMBER.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "AMBUJACEM":{name:"Ambuja Cements",region:"India",yahoo:"AMBUJACEM.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ANGELONE":{name:"Angel One",region:"India",yahoo:"ANGELONE.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "APLAPOLLO":{name:"APL Apollo Tubes",region:"India",yahoo:"APLAPOLLO.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "APOLLOHOSP":{name:"Apollo Hospitals",region:"India",yahoo:"APOLLOHOSP.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ASHOKLEY":{name:"Ashok Leyland",region:"India",yahoo:"ASHOKLEY.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ASIANPAINT":{name:"Asian Paints",region:"India",yahoo:"ASIANPAINT.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ASTRAL":{name:"Astral",region:"India",yahoo:"ASTRAL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "AUBANK":{name:"AU Small Finance Bank",region:"India",yahoo:"AUBANK.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "AUROPHARMA":{name:"Aurobindo Pharma",region:"India",yahoo:"AUROPHARMA.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "AXISBANK":{name:"Axis Bank",region:"India",yahoo:"AXISBANK.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BAJAJ-AUTO":{name:"Bajaj Auto",region:"India",yahoo:"BAJAJ-AUTO.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BAJAJFINSV":{name:"Bajaj Finserv",region:"India",yahoo:"BAJAJFINSV.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BAJAJHLDNG":{name:"Bajaj Holdings & Investments",region:"India",yahoo:"BAJAJHLDNG.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BAJFINANCE":{name:"Bajaj Finance",region:"India",yahoo:"BAJFINANCE.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BANDHANBNK":{name:"Bandhan Bank",region:"India",yahoo:"BANDHANBNK.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BANKBARODA":{name:"Bank of Baroda",region:"India",yahoo:"BANKBARODA.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BANKINDIA":{name:"Bank of India",region:"India",yahoo:"BANKINDIA.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BDL":{name:"Bharat Dynamics",region:"India",yahoo:"BDL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BEL":{name:"Bharat Electronics",region:"India",yahoo:"BEL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BHARATFORG":{name:"Bharat Forge",region:"India",yahoo:"BHARATFORG.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BHARTIARTL":{name:"Bharti Airtel",region:"India",yahoo:"BHARTIARTL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BHEL":{name:"Bharat Heavy Electricals",region:"India",yahoo:"BHEL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BIOCON":{name:"Biocon",region:"India",yahoo:"BIOCON.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BLUESTARCO":{name:"Blue Star",region:"India",yahoo:"BLUESTARCO.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BOSCHLTD":{name:"Bosch",region:"India",yahoo:"BOSCHLTD.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BPCL":{name:"Bharat Petroleum",region:"India",yahoo:"BPCL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BRITANNIA":{name:"Britannia Industries",region:"India",yahoo:"BRITANNIA.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "BSE":{name:"BSE",region:"India",yahoo:"BSE.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "CAMS":{name:"CAMS",region:"India",yahoo:"CAMS.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "CANBK":{name:"Canara Bank",region:"India",yahoo:"CANBK.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "CDSL":{name:"CDSL",region:"India",yahoo:"CDSL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "CGPOWER":{name:"CG Power & Industrial Solutions",region:"India",yahoo:"CGPOWER.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "CHOLAFIN":{name:"Cholamandalam Investment",region:"India",yahoo:"CHOLAFIN.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "CIPLA":{name:"Cipla",region:"India",yahoo:"CIPLA.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "COALINDIA":{name:"Coal India",region:"India",yahoo:"COALINDIA.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "COCHINSHIP":{name:"Cochin Shipyard",region:"India",yahoo:"COCHINSHIP.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "COFORGE":{name:"Coforge",region:"India",yahoo:"COFORGE.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "COLPAL":{name:"Colgate Palmolive",region:"India",yahoo:"COLPAL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "CONCOR":{name:"Container Corporation of India",region:"India",yahoo:"CONCOR.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "CROMPTON":{name:"Crompton Greaves",region:"India",yahoo:"CROMPTON.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "CUMMINSIND":{name:"Cummins",region:"India",yahoo:"CUMMINSIND.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "DABUR":{name:"Dabur India",region:"India",yahoo:"DABUR.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "DALBHARAT":{name:"Dalmia Bharat",region:"India",yahoo:"DALBHARAT.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "DELHIVERY":{name:"Delhivery",region:"India",yahoo:"DELHIVERY.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "DIVISLAB":{name:"Divis Laboratories",region:"India",yahoo:"DIVISLAB.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "DIXON":{name:"Dixon Technologies",region:"India",yahoo:"DIXON.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "DLF":{name:"DLF",region:"India",yahoo:"DLF.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "DMART":{name:"Avenue Supermarts DMart",region:"India",yahoo:"DMART.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "DRREDDY":{name:"Dr Reddys Laboratories",region:"India",yahoo:"DRREDDY.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "EICHERMOT":{name:"Eicher Motors",region:"India",yahoo:"EICHERMOT.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ETERNAL":{name:"Eternal",region:"India",yahoo:"ETERNAL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "EXIDEIND":{name:"Exide Industries",region:"India",yahoo:"EXIDEIND.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "FEDERALBNK":{name:"Federal Bank",region:"India",yahoo:"FEDERALBNK.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "FORCEMOT":{name:"Force Motors",region:"India",yahoo:"FORCEMOT.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "FORTIS":{name:"Fortis Healthcare",region:"India",yahoo:"FORTIS.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "GAIL":{name:"GAIL",region:"India",yahoo:"GAIL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "GLENMARK":{name:"Glenmark Pharmaceuticals",region:"India",yahoo:"GLENMARK.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "GMRAIRPORT":{name:"GMR Airports",region:"India",yahoo:"GMRAIRPORT.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "GODFRYPHLP":{name:"Godfrey Phillips",region:"India",yahoo:"GODFRYPHLP.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "GODREJCP":{name:"Godrej Consumer Products",region:"India",yahoo:"GODREJCP.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "GODREJPROP":{name:"Godrej Properties",region:"India",yahoo:"GODREJPROP.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "GRASIM":{name:"Grasim Industries",region:"India",yahoo:"GRASIM.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "GVT&D":{name:"GE Vernova T&D",region:"India",yahoo:"GVT&D.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "HAL":{name:"Hindustan Aeronautics",region:"India",yahoo:"HAL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "HAVELLS":{name:"Havells",region:"India",yahoo:"HAVELLS.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "HCLTECH":{name:"HCL Technologies",region:"India",yahoo:"HCLTECH.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "HDFCAMC":{name:"HDFC AMC",region:"India",yahoo:"HDFCAMC.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "HDFCBANK":{name:"HDFC Bank",region:"India",yahoo:"HDFCBANK.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "HDFCLIFE":{name:"HDFC Life Insurance",region:"India",yahoo:"HDFCLIFE.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "HEROMOTOCO":{name:"Hero Motocorp",region:"India",yahoo:"HEROMOTOCO.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "HINDALCO":{name:"Hindalco Industries",region:"India",yahoo:"HINDALCO.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "HINDPETRO":{name:"Hindustan Petroleum",region:"India",yahoo:"HINDPETRO.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "HINDUNILVR":{name:"Hindustan Unilever",region:"India",yahoo:"HINDUNILVR.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "HINDZINC":{name:"Hindustan Zinc",region:"India",yahoo:"HINDZINC.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "HYUNDAI":{name:"Hyundai Motor India",region:"India",yahoo:"HYUNDAI.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ICICIBANK":{name:"ICICI Bank",region:"India",yahoo:"ICICIBANK.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ICICIGI":{name:"ICICI Lombard General Insurance",region:"India",yahoo:"ICICIGI.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ICICIPRULI":{name:"ICICI Prudential Life Insurance",region:"India",yahoo:"ICICIPRULI.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "IDEA":{name:"Vodafone Idea",region:"India",yahoo:"IDEA.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "IDFCFIRSTB":{name:"IDFC First Bank",region:"India",yahoo:"IDFCFIRSTB.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "IEX":{name:"Indian Energy Exchange",region:"India",yahoo:"IEX.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "INDHOTEL":{name:"Indian Hotels Company",region:"India",yahoo:"INDHOTEL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "INDIANB":{name:"Indian Bank",region:"India",yahoo:"INDIANB.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "INDIGO":{name:"Interglobe Aviation",region:"India",yahoo:"INDIGO.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "INDUSINDBK":{name:"Indusind Bank",region:"India",yahoo:"INDUSINDBK.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "INDUSTOWER":{name:"Indus Towers",region:"India",yahoo:"INDUSTOWER.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "INFY":{name:"Infosys",region:"India",yahoo:"INFY.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "INOXWIND":{name:"Inox Wind",region:"India",yahoo:"INOXWIND.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "IOC":{name:"Indian Oil Corporation",region:"India",yahoo:"IOC.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "IREDA":{name:"IREDA",region:"India",yahoo:"IREDA.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "IRFC":{name:"IRFC",region:"India",yahoo:"IRFC.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ITC":{name:"ITC",region:"India",yahoo:"ITC.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "JINDALSTEL":{name:"Jindal Steel",region:"India",yahoo:"JINDALSTEL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "JIOFIN":{name:"Jio Financial Services",region:"India",yahoo:"JIOFIN.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "JSWENERGY":{name:"JSW Energy",region:"India",yahoo:"JSWENERGY.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "JSWSTEEL":{name:"JSW Steel",region:"India",yahoo:"JSWSTEEL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "JUBLFOOD":{name:"Jubilant FoodWorks",region:"India",yahoo:"JUBLFOOD.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "KALYANKJIL":{name:"Kalyan Jewellers",region:"India",yahoo:"KALYANKJIL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "KAYNES":{name:"Kaynes Technology India",region:"India",yahoo:"KAYNES.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "KEI":{name:"KEI Industries",region:"India",yahoo:"KEI.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "KFINTECH":{name:"KFin Technologies",region:"India",yahoo:"KFINTECH.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "KOTAKBANK":{name:"Kotak Bank",region:"India",yahoo:"KOTAKBANK.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "KPITTECH":{name:"KPIT Technologies",region:"India",yahoo:"KPITTECH.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "LAURUSLABS":{name:"Laurus Labs",region:"India",yahoo:"LAURUSLABS.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "LICHSGFIN":{name:"LIC Housing Finance",region:"India",yahoo:"LICHSGFIN.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "LICI":{name:"LIC of India",region:"India",yahoo:"LICI.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "LODHA":{name:"Lodha Developers",region:"India",yahoo:"LODHA.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "LT":{name:"Larsen & Toubro",region:"India",yahoo:"LT.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "LTF":{name:"L&T Finance",region:"India",yahoo:"LTF.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "LTIMINDTREE":{name:"LTM",region:"India",yahoo:"LTIMINDTREE.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "LUPIN":{name:"Lupin",region:"India",yahoo:"LUPIN.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "M&M":{name:"Mahindra & Mahindra",region:"India",yahoo:"M&M.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "MANAPPURAM":{name:"Manappuram Finance",region:"India",yahoo:"MANAPPURAM.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "MANKIND":{name:"Mankind Pharma",region:"India",yahoo:"MANKIND.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "MARICO":{name:"Marico",region:"India",yahoo:"MARICO.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "MARUTI":{name:"Maruti Suzuki",region:"India",yahoo:"MARUTI.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "MAXHEALTH":{name:"Max Healthcare Institute",region:"India",yahoo:"MAXHEALTH.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "MAZDOCK":{name:"Mazagon Dock Shipbuilders",region:"India",yahoo:"MAZDOCK.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "MCX":{name:"MCX",region:"India",yahoo:"MCX.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "MFSL":{name:"Max Financial Services",region:"India",yahoo:"MFSL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "MOTHERSON":{name:"Samvardhana Motherson International",region:"India",yahoo:"MOTHERSON.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "MOTILALOFS":{name:"Motilal Oswal Financial Services",region:"India",yahoo:"MOTILALOFS.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "MPHASIS":{name:"Mphasis",region:"India",yahoo:"MPHASIS.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "MUTHOOTFIN":{name:"Muthoot Finance",region:"India",yahoo:"MUTHOOTFIN.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "NAM-INDIA":{name:"Nippon Life India AMC",region:"India",yahoo:"NAM-INDIA.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "NATIONALUM":{name:"NALCO",region:"India",yahoo:"NATIONALUM.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "NAUKRI":{name:"Info Edge",region:"India",yahoo:"NAUKRI.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "NBCC":{name:"NBCC",region:"India",yahoo:"NBCC.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "NESTLEIND":{name:"Nestle",region:"India",yahoo:"NESTLEIND.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "NHPC":{name:"NHPC",region:"India",yahoo:"NHPC.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "NMDC":{name:"NMDC",region:"India",yahoo:"NMDC.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "NTPC":{name:"NTPC",region:"India",yahoo:"NTPC.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "NUVAMA":{name:"Nuvama Wealth Management",region:"India",yahoo:"NUVAMA.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "NYKAA":{name:"Nykaa",region:"India",yahoo:"NYKAA.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "OBEROIRLTY":{name:"Oberoi Realty",region:"India",yahoo:"OBEROIRLTY.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "OFSS":{name:"Oracle Financial Services Software",region:"India",yahoo:"OFSS.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "OIL":{name:"Oil India",region:"India",yahoo:"OIL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ONGC":{name:"Oil & Natural Gas Corporation",region:"India",yahoo:"ONGC.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "PAGEIND":{name:"Page Industries",region:"India",yahoo:"PAGEIND.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "PATANJALI":{name:"Patanjali Foods",region:"India",yahoo:"PATANJALI.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "PAYTM":{name:"One 97 Communications",region:"India",yahoo:"PAYTM.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "PERSISTENT":{name:"Persistent Systems",region:"India",yahoo:"PERSISTENT.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "PETRONET":{name:"Petronet LNG",region:"India",yahoo:"PETRONET.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "PFC":{name:"Power Finance Corporation",region:"India",yahoo:"PFC.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "PGEL":{name:"PG Electroplast",region:"India",yahoo:"PGEL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "PHOENIXLTD":{name:"Phoenix Mills",region:"India",yahoo:"PHOENIXLTD.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "PIDILITIND":{name:"Pidilite Industries",region:"India",yahoo:"PIDILITIND.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "PIIND":{name:"PI Industries",region:"India",yahoo:"PIIND.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "PNB":{name:"Punjab National Bank",region:"India",yahoo:"PNB.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "PNBHOUSING":{name:"PNB Housing Finance",region:"India",yahoo:"PNBHOUSING.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "POLICYBZR":{name:"PB FinTech",region:"India",yahoo:"POLICYBZR.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "POLYCAB":{name:"Polycab",region:"India",yahoo:"POLYCAB.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "POWERGRID":{name:"Power Grid Corporation of India",region:"India",yahoo:"POWERGRID.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "POWERINDIA":{name:"Hitachi Energy",region:"India",yahoo:"POWERINDIA.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "PREMIERENE":{name:"Premier Energies",region:"India",yahoo:"PREMIERENE.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "PRESTIGE":{name:"Prestige Estates Projects",region:"India",yahoo:"PRESTIGE.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "RADICO":{name:"Radico Khaitan",region:"India",yahoo:"RADICO.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "RBLBANK":{name:"RBL Bank",region:"India",yahoo:"RBLBANK.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "RECLTD":{name:"REC",region:"India",yahoo:"RECLTD.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "RELIANCE":{name:"Reliance Industries",region:"India",yahoo:"RELIANCE.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "RVNL":{name:"Rail Vikas Nigam",region:"India",yahoo:"RVNL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "SAIL":{name:"Steel Authority of India",region:"India",yahoo:"SAIL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "SBICARD":{name:"SBI Cards",region:"India",yahoo:"SBICARD.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "SBILIFE":{name:"SBI Life Insurance",region:"India",yahoo:"SBILIFE.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "SBIN":{name:"State Bank of India",region:"India",yahoo:"SBIN.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "SHREECEM":{name:"Shree Cement",region:"India",yahoo:"SHREECEM.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "SHRIRAMFIN":{name:"Shriram Finance",region:"India",yahoo:"SHRIRAMFIN.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "SIEMENS":{name:"Siemens",region:"India",yahoo:"SIEMENS.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "SOLARINDS":{name:"Solar Industries",region:"India",yahoo:"SOLARINDS.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "SONACOMS":{name:"Sona BLW Precision Forgings",region:"India",yahoo:"SONACOMS.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "SRF":{name:"SRF",region:"India",yahoo:"SRF.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "SUNPHARMA":{name:"Sun Pharmaceutical",region:"India",yahoo:"SUNPHARMA.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "SUPREMEIND":{name:"Supreme Industries",region:"India",yahoo:"SUPREMEIND.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "SUZLON":{name:"Suzlon Energy",region:"India",yahoo:"SUZLON.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "SWIGGY":{name:"Swiggy",region:"India",yahoo:"SWIGGY.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "TATACONSUM":{name:"Tata Consumer Products",region:"India",yahoo:"TATACONSUM.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "TATAELXSI":{name:"Tata Elxsi",region:"India",yahoo:"TATAELXSI.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "TATAPOWER":{name:"Tata Power",region:"India",yahoo:"TATAPOWER.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "TATASTEEL":{name:"Tata Steel",region:"India",yahoo:"TATASTEEL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "TCS":{name:"Tata Consultancy Services",region:"India",yahoo:"TCS.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "TECHM":{name:"Tech Mahindra",region:"India",yahoo:"TECHM.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "TIINDIA":{name:"Tube Investment",region:"India",yahoo:"TIINDIA.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "TITAN":{name:"Titan",region:"India",yahoo:"TITAN.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "TMPV":{name:"Tata Motors Passenger Vehicles",region:"India",yahoo:"TMPV.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "TORNTPHARM":{name:"Torrent Pharmaceuticals",region:"India",yahoo:"TORNTPHARM.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "TRENT":{name:"Trent",region:"India",yahoo:"TRENT.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "TVSMOTOR":{name:"TVS Motors",region:"India",yahoo:"TVSMOTOR.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ULTRACEMCO":{name:"UltraTech Cement",region:"India",yahoo:"ULTRACEMCO.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "UNIONBANK":{name:"Union Bank of India",region:"India",yahoo:"UNIONBANK.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "MCDOWELL-N":{name:"United Spirits",region:"India",yahoo:"MCDOWELL-N.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "UNOMINDA":{name:"UNO Minda",region:"India",yahoo:"UNOMINDA.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "UPL":{name:"UPL",region:"India",yahoo:"UPL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "VBL":{name:"Varun Beverages",region:"India",yahoo:"VBL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "VEDL":{name:"Vedanta",region:"India",yahoo:"VEDL.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "VMM":{name:"Vishal Mega Mart",region:"India",yahoo:"VMM.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "VOLTAS":{name:"Voltas",region:"India",yahoo:"VOLTAS.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "WAAREEENER":{name:"Waaree Energies",region:"India",yahoo:"WAAREEENER.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "WIPRO":{name:"Wipro",region:"India",yahoo:"WIPRO.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "YESBANK":{name:"Yes Bank",region:"India",yahoo:"YESBANK.NS",anchor:1000,scale:5,dec:2,kind:"stock"},
+  "ZYDUSLIFE":{name:"Zydus Life Science",region:"India",yahoo:"ZYDUSLIFE.NS",anchor:1000,scale:5,dec:2,kind:"stock"}
 };
 const TOOLS=[
   {group:'Overview',items:[{id:'chart',name:'Price Chart',ic:'📈'},{id:'pivots',name:'Pivot Points',ic:'⊹'},{id:'dash',name:'Dashboard',ic:'▤'}]},
@@ -503,6 +780,7 @@ const TOOLS=[
     {id:'apsides',name:'Apogee and Perigee',ic:'☾'},
     {id:'eclipse',name:'Eclipse',ic:'🌑'}
   ]},
+  {group:'Bayer Rules',items:[{id:'bayerrules',name:'Bayer Rule Scanner',ic:'📖'}]},
   {group:'Gann Charts',items:[
     {id:'csq9',name:'The Square of Nine',ic:'🌀'},
     {id:'csqfour',name:'The Square of Four',ic:'◳'},
@@ -880,17 +1158,20 @@ function Sq9PlanetPanel({price,dt,ix}){
 function About(){
   return(<div>
     <h2 className="pg-head">About <span className="sub">· Gann &amp; Astro Terminal</span></h2>
-    <p className="pg-desc">A self-contained terminal implementing the full W.D. Gann tool set plus the core financial-astrology tools catalogued in the Optuma knowledge base, for six indices.</p>
+    <p className="pg-desc">A self-contained terminal implementing the full W.D. Gann tool set plus the core financial-astrology tools catalogued in the Optuma knowledge base, for {Object.keys(INDICES).length} indices &amp; F&amp;O stocks.</p>
     <div className="panel"><h3>Tools Implemented</h3>
       <table><tbody>
         <tr><td className="l amb">Gann</td><td className="l">All 40 Optuma Gann tools — Square of 9 (calculator, wheel, static, dynamic, dates, intervals, Gann fan), Gann Fan/Angles (static + dynamic), Dynamic Gann Levels, Gann Box, Gann Squares, Hex Intervals, Wheel of 24, Divisions of 3rds/8ths (price + time), Measured/Single/High-Low/Zero degree lines &amp; fans, Seven Times the Base, Triple Octave (price + time), Pyrapoint, Pattern of Vibration, Mass Pressure, Number Searcher, Day Count/Cycles, Time-Price Labels/Measure, Square Range &amp; Marker family, Top/Bottom, Overlay, Pattern Matcher</td></tr>
         <tr><td className="l vio">Astro</td><td className="l">Ephemeris, Planetary Aspects (+grid), Moon Phases, Planetary Retrograde, Declination, Gann Planetary Lines, Square-of-9 Planetary Intervals</td></tr>
         <tr><td className="l cyn">Charts</td><td className="l">The Square of Nine, The Square of Four, The Hexagon Chart, The Wheel of 24</td></tr>
+        <tr><td className="l amb">Bayer Rules</td><td className="l">Curated, testable rules from George Bayer's <i>Handbook on Trend Determination</i> (planetary stations, conjunctions &amp; sign ingresses), scanned against loaded price history with chart markers, horizontal marks and an occurrence-summary table</td></tr>
+        <tr><td className="l cyn">Pivot Points</td><td className="l">Classic + CPR + Camarilla, plus an Extended mode projecting R1–R10 / S1–S10; Square-of-9 nearest S/R also extended to 10 levels each side</td></tr>
+        <tr><td className="l vio">Anchor Points</td><td className="l">Prev Close, Today Open, Prev Week/Month/Quarter/Year High &amp; Low, and Major Swing High/Low — selectable from the top-bar Anchor dropdown</td></tr>
       </tbody></table>
     </div>
-    <div className="panel"><h3>Indices</h3><table><thead><tr><th className="l">Code</th><th className="l">Index</th><th className="l">Region</th><th className="l">Yahoo symbol</th></tr></thead><tbody>
-      {Object.entries(INDICES).map(([k,v])=><tr key={k}><td className="l cyn">{k}</td><td className="l">{v.name}</td><td className="l mut">{v.region}</td><td className="l mut">{v.yahoo}</td></tr>)}
-    </tbody></table></div>
+    <div className="panel"><h3>Indices &amp; F&amp;O Stocks ({Object.keys(INDICES).length})</h3><div className="scroll"><table><thead><tr><th className="l">Code</th><th className="l">Name</th><th className="l">Region</th><th className="l">Yahoo symbol</th></tr></thead><tbody>
+      {Object.entries(INDICES).map(([k,v])=><tr key={k}><td className="l cyn">{k}</td><td className="l">{v.name}</td><td className="l mut">{v.region}</td><td className="l mut">{v.yahoo||'—'}</td></tr>)}
+    </tbody></table></div></div>
     <div className="panel"><h3>Live Data (scrapling)</h3>
       <p className="mut" style={{margin:'0 0 8px'}}>Prices can be entered manually, or pulled live by running the included <span className="kbd">fetch_data.py</span> (uses the scrapling framework) which writes <span className="kbd">data.json</span> next to this file. Then click <b>Load data.json</b> in the top bar, or serve the folder so it auto-loads.</p>
       <pre style={{background:'var(--bg2)',padding:'10px',borderRadius:6,overflow:'auto',color:'var(--grn)',fontSize:11,border:'1px solid var(--border)'}}>{`pip install "scrapling[fetchers]"
@@ -1533,6 +1814,7 @@ function PivotsPanel({price,ix,hist}){
   const [oC,setOC]=useState(ref?ref.c:Math.round(price));
   useEffect(()=>{if(ref){setOH(ref.h);setOL(ref.l);setOC(ref.c);}},[ref&&ref.t]);
   const piv=useMemo(()=>pivotLevels(oH,oL,oC),[oH,oL,oC]);
+  const ext=useMemo(()=>extendedPivots(oH,oL,oC,10),[oH,oL,oC]);
   const cam=useMemo(()=>camarillaLevels(oH,oL,oC),[oH,oL,oC]);
   const fmt=v=>fmtN(v,ix.dec);
   const cur=today?today.c:price;
@@ -1540,7 +1822,7 @@ function PivotsPanel({price,ix,hist}){
     <h2 className="pg-head">Pivot Points <span className="sub">prev session → today</span></h2>
     <p className="pg-desc">Classic floor-trader pivots, CPR and Camarilla levels computed from the <b>previous session's High/Low/Close</b> — the standard intraday reference. Edit H/L/C to override. These are real OHLC-based levels (not Square-of-9 projections).</p>
     <div className="panel"><div className="row">
-      <Field label="Method"><select value={mode} onChange={e=>setMode(e.target.value)}><option value="classic">Classic + CPR</option><option value="camarilla">Camarilla</option></select></Field>
+      <Field label="Method"><select value={mode} onChange={e=>setMode(e.target.value)}><option value="classic">Classic + CPR</option><option value="extended">Extended R1-R10 / S1-S10</option><option value="camarilla">Camarilla</option></select></Field>
       <Field label="Prev High"><Num value={oH} onChange={setOH}/></Field>
       <Field label="Prev Low"><Num value={oL} onChange={setOL}/></Field>
       <Field label="Prev Close"><Num value={oC} onChange={setOC}/></Field>
@@ -1568,6 +1850,16 @@ function PivotsPanel({price,ix,hist}){
       </tbody></table>
       <div className="note">Narrow CPR ⇒ trending day expected; wide CPR ⇒ rangebound. Current price {fmt(cur)} is {cur>piv.P?'above':'below'} the pivot.</div></div>
     </div>
+    :mode==='extended'?
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+      <div className="panel"><h3>Resistance R1–R10</h3><table><tbody>
+        {ext.R.map((v,i)=><tr key={i}><td className="l"><span className="tag res">R{i+1}</span></td><td>{fmt(v)}</td><td className="mut">{((v-cur)/cur*100).toFixed(2)}%</td></tr>)}
+      </tbody></table></div>
+      <div className="panel"><h3>Support S1–S10</h3><table><tbody>
+        {ext.S.map((v,i)=><tr key={i}><td className="l"><span className="tag sup">S{i+1}</span></td><td>{fmt(v)}</td><td className="mut">{((v-cur)/cur*100).toFixed(2)}%</td></tr>)}
+      </tbody></table></div>
+      <div className="note" style={{gridColumn:'1 / -1'}}>R1–R3 / S1–S3 are the classic floor-trader levels; R4–R10 / S4–S10 project the same (High−Low) range step beyond R3/S3.</div>
+    </div>
     :
     <div className="panel"><h3>Camarilla Levels</h3><table><tbody>
       <tr><td className="l"><span className="tag res">H4</span> breakout</td><td>{fmt(cam.H4)}</td></tr>
@@ -1590,7 +1882,11 @@ function _cx(ctx){const data=(ctx.hist&&ctx.hist.length)?ctx.hist:[];const ancho
 function _bandfn(price){return p=>isFinite(p)&&p>price*0.7&&p<price*1.4;}
 const C_SUP='#36d399',C_RES='#f5b942',C_PIV='#ff9d3b',C_FAN='#48c6e8',C_VIO='#b98cff',C_MAG='#ff7ac6';
 function hlSR(price){const sr=sq9NearestSR(price,45);const b=_bandfn(price);return sr.resistance.map((p,i)=>({price:p,color:C_RES,title:'R'+(i+1)})).concat(sr.support.map((p,i)=>({price:p,color:C_SUP,title:'S'+(i+1)}))).filter(l=>b(l.price));}
-function hlPivots(data){const n=data.length;const ref=n>=2?data[n-2]:(n?data[n-1]:null);if(!ref)return[];const pv=pivotLevels(ref.h,ref.l,ref.c);return[{price:pv.P,color:C_PIV,title:'P',w:2},{price:pv.R1,color:C_RES,title:'R1'},{price:pv.R2,color:C_RES,title:'R2'},{price:pv.R3,color:C_RES,title:'R3'},{price:pv.S1,color:C_SUP,title:'S1'},{price:pv.S2,color:C_SUP,title:'S2'},{price:pv.S3,color:C_SUP,title:'S3'},{price:pv.TC,color:'#7d8aa0',title:'TC',dash:true},{price:pv.BC,color:'#7d8aa0',title:'BC',dash:true}];}
+function hlPivots(data){const n=data.length;const ref=n>=2?data[n-2]:(n?data[n-1]:null);if(!ref)return[];const pv=pivotLevels(ref.h,ref.l,ref.c);const ext=extendedPivots(ref.h,ref.l,ref.c,10);
+  const out=[{price:pv.P,color:C_PIV,title:'P',w:2},{price:pv.TC,color:'#7d8aa0',title:'TC',dash:true},{price:pv.BC,color:'#7d8aa0',title:'BC',dash:true}];
+  ext.R.forEach((v,i)=>out.push({price:v,color:C_RES,title:'R'+(i+1),dash:i>=3}));
+  ext.S.forEach((v,i)=>out.push({price:v,color:C_SUP,title:'S'+(i+1),dash:i>=3}));
+  return out;}
 function flFan(price,scale,dir,anchorT,futureT){const s=dir==='dn'?-1:1;return GANN_RATIOS.map(r=>({t1:anchorT,p1:price,t2:futureT,p2:price+s*scale*r.tpu*64,color:r.label==='1x1'?C_RES:C_FAN,w:r.label==='1x1'?2:1}));}
 function mkCycles(dt){return gannTimeCycles(dt,[30,45,60,90,120,180,270,360]).map(c=>({time:c.date.toISOString().slice(0,10),position:'belowBar',color:C_VIO,shape:'arrowUp',text:c.days+'d'}));}
 function hlPlanets(dt,price){const f=price/360;const b=_bandfn(price);const out=[];planetaryLines(dt,f,6,['Sun','Mercury','Venus','Mars','Jupiter','Saturn']).forEach(p=>{const inr=p.lines.find(l=>b(l.price));if(inr)out.push({price:inr.price,color:PCOLOR[p.name]||'#888',title:p.glyph+' '+p.name,dash:true});});return out;}
@@ -1664,7 +1960,7 @@ function LWChart({hist,spec,onAnchor,onReady,height,dec}){
   </div>);
 }
 
-const CHART_TOOLS=new Set(['sq9calc','statsq9','dynsq9','pivots','gannfan','dynfan','zeroprice','sq9fan','dynlevels','sq9int','measdeg','singledeg','hilodeg','zerodeg','seventimes','trioct','pyrapoint','vibration','gsquares','wheel24','hexint','div3','div8','pricediv','planetlines','sq9planet','sq9dates','timecycles','trioctt','moon','gannbox','aspects','retro','signchg','timebydeg','apsides','eclipse','sq90']);
+const CHART_TOOLS=new Set(['sq9calc','statsq9','dynsq9','pivots','gannfan','dynfan','zeroprice','sq9fan','dynlevels','sq9int','measdeg','singledeg','hilodeg','zerodeg','seventimes','trioct','pyrapoint','vibration','gsquares','wheel24','hexint','div3','div8','pricediv','planetlines','sq9planet','sq9dates','timecycles','trioctt','moon','gannbox','aspects','retro','signchg','timebydeg','apsides','eclipse','sq90','bayerrules']);
 
 function buildToolSpec(id,ctx){
   const {price,dt,ix,hist}=ctx;const scale=ctx.scale||ix.scale;const X=_cx(ctx);const b=_bandfn(price);
@@ -1705,6 +2001,17 @@ function buildToolSpec(id,ctx){
     case 'eclipse': {var Rc=_astroRange(dt,hist,200);S.markers=eclipses(Rc.st,Rc.dys).map(function(r){return{time:r.date.toISOString().slice(0,10),position:'aboveBar',color:r.type==='Solar Eclipse'?'#f5b942':'#b98cff',shape:'circle',text:r.type==='Solar Eclipse'?'SoE':'LuE'};});S.title='Eclipses';break;}
     case 'gannbox': {const p1=Math.round(price*0.92),p2=Math.round(price*1.08);S.hlines=[0,0.25,0.333,0.5,0.667,0.75,1].map(f=>({price:p1+(p2-p1)*f,color:f===0.5?C_RES:C_FAN,title:(f*100).toFixed(0)+'%'}));S.title='Gann Box';break;}
     case 'sq90': {var q90=square90Price(price);S.hlines=q90.map(function(p){return {price:p.up,color:p.col,title:p.deg+'\u00b0R'};}).concat(q90.map(function(p){return {price:p.dn,color:p.col,title:p.deg+'\u00b0S',dash:true};})).filter(function(l){return b(l.price);});S.markers=square90Time(dt,540).map(function(t){return {time:t.date.toISOString().slice(0,10),position:'belowBar',color:t.col,shape:'arrowUp',text:t.angle+'\u00b0'};});S.title='Square of 90 (quarters + time)';break;}
+    case 'bayerrules': {
+      const bScans=BAYER_RULES.map(r=>({rule:r,events:scanBayerRule(r,X.data)}));
+      const bWith=bScans.filter(s=>s.events.length);
+      const bTypeColor={aspect:'#f5b942',station:'#b98cff',ingress:'#48c6e8'};
+      S.markers=[];
+      bWith.forEach(s=>{s.events.forEach(e=>{S.markers.push({time:e.time,position:'aboveBar',color:bTypeColor[s.rule.conditionType]||'#8aa',shape:'circle',text:s.rule.name.slice(0,2).toUpperCase()});});});
+      const bTop=bWith.slice().sort((a,b2)=>b2.events.length-a.events.length)[0];
+      if(bTop)S.hlines=bTop.events.map(e=>({price:e.close,color:bTypeColor[bTop.rule.conditionType]||C_RES,title:bTop.rule.name.slice(0,12),dash:true}));
+      S.title='Bayer Rules'+(bTop?(' \u2014 horizontal marks: '+bTop.rule.name):'');
+      break;
+    }
     default: return null;
   }}catch(e){return {hlines:[],flines:[],markers:[],title:''};}
   return S;
@@ -1715,6 +2022,129 @@ function ToolChartView({id,price,dt,ix,hist,setAnchor,table}){
   return(<div>
     <LWChart hist={hist} spec={spec} onAnchor={setAnchor} height={400} dec={ix.dec}/>
     <div style={{marginTop:14}}>{table}</div>
+  </div>);
+}
+
+/* ===================== BAYER RULES ENGINE (added) ===================== */
+/* Curated, testable rules paraphrased from George Bayer's "Handbook on Trend Determination —
+   Astrological Rules for Traders" — each maps to a computable astronomical condition. */
+const BAYER_RULES=[
+  {id:'mercury_station_trend_change',name:'Mercury Station (Direct/Retrograde)',page:9,
+    summary:"Bayer says wheat tends to reverse or set a new short-term trend on the day Mercury's geocentric speed stalls and flips direction (turning retrograde or direct); the resulting move usually lasts about four days to a week.",
+    conditionType:'station',conditionParams:{body:'Mercury'}},
+  {id:'venus_sun_conjunction_top',name:'Venus–Sun Conjunction',page:26,
+    summary:'Bayer claims that a geocentric conjunction of Venus with the Sun (superior or inferior) is usually followed, after a short lag, by an important top in wheat.',
+    conditionType:'aspect',conditionParams:{bodyA:'Venus',bodyB:'Sun',aspect:'Conjunction'}},
+  {id:'venus_mercury_conjunction_retrograde',name:'Venus–Mercury Conjunction',page:27,
+    summary:'Bayer states that when retrograde Venus conjoins Mercury, a strong directional move (up or down, depending on the setup) follows, typically lasting five to eight days.',
+    conditionType:'aspect',conditionParams:{bodyA:'Venus',bodyB:'Mercury',aspect:'Conjunction'}},
+  {id:'mercury_sun_conjunction_trend_change',name:'Mercury–Sun Conjunction',page:28,
+    summary:"Bayer states that Mercury's conjunctions with the Sun, especially while Mercury is retrograde, reliably mark a change of trend in wheat and work almost every time this occurs.",
+    conditionType:'aspect',conditionParams:{bodyA:'Mercury',bodyB:'Sun',aspect:'Conjunction'}},
+  {id:'mercury_saturn_conjunction_top',name:'Mercury–Saturn Conjunction',page:45,
+    summary:'Bayer finds that Mercury conjunct Saturn coincides with important tops (or major lows in wheat), and produces shorter countertrend rallies when the alignment recurs in later cycles.',
+    conditionType:'aspect',conditionParams:{bodyA:'Mercury',bodyB:'Saturn',aspect:'Conjunction'}},
+  {id:'mercury_jupiter_conjunction_top',name:'Mercury–Jupiter Conjunction',page:45,
+    summary:'Bayer notes that Mercury conjunct Jupiter tends to mark a top, and produces smaller countertrend rallies when the alignment recurs in later cycles.',
+    conditionType:'aspect',conditionParams:{bodyA:'Mercury',bodyB:'Jupiter',aspect:'Conjunction'}},
+  {id:'mercury_sign_ingress',name:'Mercury Sign Ingress',page:45,
+    summary:"Bayer treats the day Mercury crosses into a new zodiac sign as a recurring marker of trend change in commodity prices, alongside Mercury's stations.",
+    conditionType:'ingress',conditionParams:{body:'Mercury'}},
+  {id:'venus_sign_ingress',name:'Venus Sign Ingress',page:48,
+    summary:'Bayer states that Venus entering a new zodiac sign tends to precede a change of trend in cotton, part of a rule he applies jointly to Mercury, Venus and Mars.',
+    conditionType:'ingress',conditionParams:{body:'Venus'}},
+  {id:'mars_sign_ingress',name:'Mars Sign Ingress',page:48,
+    summary:'Bayer states that Mars entering a new zodiac sign tends to precede a change of trend in cotton, part of a rule he applies jointly to Mercury, Venus and Mars.',
+    conditionType:'ingress',conditionParams:{body:'Mars'}},
+  {id:'venus_station_trend_change',name:'Venus Station (Direct/Retrograde)',page:48,
+    summary:'Bayer includes the dates Venus turns retrograde or direct among the planetary station points he says mark good changes of trend in cotton prices.',
+    conditionType:'station',conditionParams:{body:'Venus'}},
+  {id:'mars_station_trend_change',name:'Mars Station (Direct/Retrograde)',page:48,
+    summary:'Bayer includes the dates Mars turns retrograde or direct among the planetary station points he says mark good changes of trend in cotton prices.',
+    conditionType:'station',conditionParams:{body:'Mars'}}
+];
+function scanAspectRule(hist,bodyA,bodyB,aspectName){
+  const times=tradingTimes(hist);if(times.length<2)return[];
+  const aspDef=ASPECTS.find(a=>a.name===aspectName);if(!aspDef)return[];
+  const cand=[];
+  times.forEach(t=>{
+    const eph=ephemeris(new Date(t+'T12:00:00Z'),[bodyA,bodyB]);
+    const sep=Math.abs(rev180(eph[0].lon-eph[1].lon));
+    const orb=Math.abs(sep-aspDef.angle);
+    if(orb<=aspDef.orb)cand.push({t,orb});
+  });
+  const out=[];let cl=[];
+  const flush=()=>{if(!cl.length)return;let best=cl[0];cl.forEach(c=>{if(c.orb<best.orb)best=c;});out.push(best.t);cl=[];};
+  cand.forEach(c=>{if(cl.length&&(Date.parse(c.t)-Date.parse(cl[cl.length-1].t))>20*864e5)flush();cl.push(c);});
+  flush();
+  return out;
+}
+function scanStationRule(hist,body){
+  const times=tradingTimes(hist);if(times.length<2)return[];
+  let prevSpeed=null;const out=[];
+  times.forEach(t=>{
+    const d=dayNumberFromDate(new Date(t+'T12:00:00Z'));
+    const sp=rev180(positionAt(body,d+1).lon-positionAt(body,d).lon);
+    if(prevSpeed!=null&&(prevSpeed<0)!==(sp<0))out.push(t);
+    prevSpeed=sp;
+  });
+  return out;
+}
+function scanIngressRule(hist,body){
+  if(!hist||!hist.length)return[];
+  const start=new Date(hist[0].t+'T12:00:00Z');
+  const days=Math.round((Date.parse(hist[hist.length-1].t)-Date.parse(hist[0].t))/86400000)+1;
+  const times=tradingTimes(hist);
+  return signChanges(start,days,[body]).map(r=>snapToTimes(r.date.toISOString().slice(0,10),times));
+}
+function scanBayerRule(rule,hist){
+  if(!hist||!hist.length)return[];
+  const p=rule.conditionParams;let dates=[];
+  if(rule.conditionType==='aspect')dates=scanAspectRule(hist,p.bodyA,p.bodyB,p.aspect);
+  else if(rule.conditionType==='station')dates=scanStationRule(hist,p.body);
+  else if(rule.conditionType==='ingress')dates=scanIngressRule(hist,p.body);
+  const byT={};hist.forEach(b=>{byT[b.t]=b;});
+  const seen={};const out=[];
+  dates.forEach(t=>{if(seen[t]||!byT[t])return;seen[t]=true;out.push({time:t,close:byT[t].c});});
+  out.sort((a,b)=>a.time<b.time?-1:1);
+  return out;
+}
+function BayerRulesPanel({price,ix,hist}){
+  const [selected,setSelected]=useState('all');
+  const scans=useMemo(()=>BAYER_RULES.map(r=>({rule:r,events:scanBayerRule(r,hist)})),[hist]);
+  const totalEvents=scans.reduce((s,x)=>s+x.events.length,0);
+  const ranked=useMemo(()=>scans.slice().sort((a,b)=>b.events.length-a.events.length),[scans]);
+  const active=selected==='all'?null:scans.find(s=>s.rule.id===selected);
+  return(<div>
+    <h2 className="pg-head">Bayer Rules <span className="sub">George Bayer · Trend Determination</span></h2>
+    <p className="pg-desc">Curated, testable trading rules paraphrased from George Bayer's <i>Handbook on Trend Determination — Astrological Rules for Traders</i>, scanned against the currently loaded price history. The chart above marks every rule's trigger dates; the horizontal lines project the <b>most frequent</b> rule's trigger closes forward — pick a rule below to inspect its own occurrences and see whether "similar" triggers land on the same price parameter.</p>
+    <div className="panel"><div className="row">
+      <Field label="Rule"><select value={selected} onChange={e=>setSelected(e.target.value)}>
+        <option value="all">All rules (markers only)</option>
+        {BAYER_RULES.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+      </select></Field>
+      <div className="mut">{totalEvents} total triggers across {BAYER_RULES.length} rules in the loaded range.</div>
+    </div></div>
+    <div className="panel"><h3>Rule Occurrence Summary <span className="mut" style={{fontWeight:400,fontSize:11}}>— same parameter, grouped</span></h3><div className="scroll"><table><thead><tr><th className="l">Rule</th><th className="l">Type</th><th>Page</th><th>Occurrences</th><th className="l">Most recent</th></tr></thead><tbody>
+      {ranked.map((s,i)=>
+        <tr key={i} style={{cursor:'pointer'}} onClick={()=>setSelected(s.rule.id)}>
+          <td className="l" style={{color:selected===s.rule.id?'var(--grn)':'inherit'}}>{s.rule.name}</td>
+          <td className="l mut">{s.rule.conditionType}</td>
+          <td className="mut">{s.rule.page||'–'}</td>
+          <td className={s.events.length>1?'amb':'mut'}>{s.events.length}</td>
+          <td className="l cyn">{s.events.length?s.events[s.events.length-1].time:'—'}</td>
+        </tr>)}
+    </tbody></table></div></div>
+    {active?
+    <div className="panel"><h3>{active.rule.name} <span className="sub" style={{fontSize:11}}>· p.{active.rule.page}</span></h3>
+      <p className="mut" style={{fontSize:12,margin:'0 0 10px'}}>{active.rule.summary}</p>
+      {active.events.length?
+      <table><thead><tr><th className="l">Date</th><th>Close</th><th>Δ% vs anchor</th></tr></thead><tbody>
+        {active.events.map((e,i)=><tr key={i}><td className="l cyn">{e.time}</td><td>{fmtN(e.close,ix.dec)}</td><td className={e.close>=price?'amb':'pos'}>{((e.close-price)/price*100).toFixed(2)}%</td></tr>)}
+      </tbody></table>
+      :<div className="mut">No occurrences of this rule in the currently loaded price history.</div>}
+    </div>
+    :<div className="note">Click a rule row (or the dropdown) to see its individual trigger dates.</div>}
   </div>);
 }
 
@@ -1944,7 +2374,26 @@ function App(){
   const ix=INDICES[ixKey];
   const [price,setPrice]=useState(INDICES.NSEI.anchor);
   const [anchorBasis,setAnchorBasis]=useState('prevclose');
-  const anchorFromHist=(basis,H)=>{if(!H||!H.length)return null;if(basis==='open')return{p:+H[H.length-1].o,d:H[H.length-1].t};if(H.length>=2)return{p:+H[H.length-2].c,d:H[H.length-1].t};return{p:+H[H.length-1].o,d:H[H.length-1].t};};
+  const anchorFromHist=(basis,H)=>{
+    if(!H||!H.length)return null;
+    const lastT=H[H.length-1].t;
+    if(basis==='open')return{p:+H[H.length-1].o,d:lastT};
+    if(/^p[wmqy][hl]$/.test(basis)){
+      const period={w:'week',m:'month',q:'quarter',y:'year'}[basis[1]];
+      const r=prevPeriodHighLow(H,period);
+      if(!r)return null;
+      const isHigh=basis[2]==='h';
+      return{p:isHigh?r.high:r.low,d:isHigh?r.highDate:r.lowDate};
+    }
+    if(basis==='swingh'||basis==='swingl'){
+      const sw=majorSwing(H,5);
+      const pt=basis==='swingh'?sw.high:sw.low;
+      if(!pt)return null;
+      return{p:pt.price,d:pt.t};
+    }
+    if(H.length>=2)return{p:+H[H.length-2].c,d:lastT};
+    return{p:+H[H.length-1].o,d:lastT};
+  };
   const [dateStr,setDateStr]=useState(new Date().toISOString().slice(0,10));
   const [tool,setTool]=useState('chart');
   const [sbOpen,setSbOpen]=useState(true);
@@ -1963,12 +2412,13 @@ function App(){
 
   // try auto-load data.json (works when served over http)
   useEffect(()=>{fetch('./data.json').then(r=>r.ok?r.json():null).then(j=>{if(j)setData(j);}).catch(()=>{});},[]);
-  // when index changes, set price from live data if present else anchor placeholder
+  // when index/date-basis changes, resolve price from history (live if loaded, else demo) else anchor placeholder
   useEffect(()=>{
-    const H=data&&data[ixKey]&&data[ixKey].history;
-    if(H&&H.length){const a=anchorFromHist(anchorBasis,H);if(a){setPrice(a.p);setDateStr(a.d);}}
+    if(anchorBasis==='manual')return;
+    const a=anchorFromHist(anchorBasis,hist);
+    if(a){setPrice(a.p);setDateStr(a.d);}
     else setPrice(INDICES[ixKey].anchor);
-  },[ixKey,data,anchorBasis]);
+  },[ixKey,data,anchorBasis,hist]);
 
   const onFile=(e)=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
     r.onload=()=>{const txt=r.result;
@@ -2060,6 +2510,7 @@ function App(){
       case'csqfour':return<SquareOfFourPanel {...P}/>;
       case'cwheel24':return<Wheel24Panel {...P}/>;
       case'csq9':return<WithBanner text="The Square of Nine — the master spiral."><Sq9Wheel {...P}/></WithBanner>;
+      case'bayerrules':return<BayerRulesPanel {...P}/>;
       default:return<Dashboard {...P}/>;
     }
   };
@@ -2069,8 +2520,31 @@ function App(){
       <div className="brand"><span className="dot"></span>GANN·ASTRO<small>TERMINAL</small></div>
       <div className="tb-spacer"></div>
       <Field label="Index"><select value={ixKey} onChange={e=>setIxKey(e.target.value)}>
-        {Object.entries(INDICES).map(([k,v])=><option key={k} value={k}>{k} · {v.name}</option>)}</select></Field>
-      <Field label="Anchor price"><div style={{display:'flex',gap:4,alignItems:'center'}}><input type="number" value={price} step="any" style={{width:'104px'}} onChange={e=>setPrice(parseFloat(e.target.value))}/><button className={'btn sm'+(anchorBasis==='prevclose'?' on':'')} title="Anchor = previous session close (Gann S/R reference)" onClick={()=>setAnchorBasis('prevclose')}>Prev close</button><button className={'btn sm'+(anchorBasis==='open'?' on':'')} title="Anchor = today open" onClick={()=>setAnchorBasis('open')}>Today open</button></div></Field>
+        <optgroup label="Indices">
+          {Object.entries(INDICES).filter(([k,v])=>v.kind==='index').map(([k,v])=><option key={k} value={k}>{k} · {v.name}</option>)}
+        </optgroup>
+        <optgroup label="F&O Stocks">
+          {Object.entries(INDICES).filter(([k,v])=>v.kind==='stock').sort((a,b)=>a[1].name<b[1].name?-1:1).map(([k,v])=><option key={k} value={k}>{k} · {v.name}</option>)}
+        </optgroup>
+      </select></Field>
+      <Field label="Anchor price"><div style={{display:'flex',gap:4,alignItems:'center'}}>
+        <input type="number" value={price} step="any" style={{width:'96px'}} onChange={e=>{setAnchorBasis('manual');setPrice(parseFloat(e.target.value));}}/>
+        <select value={anchorBasis} onChange={e=>setAnchorBasis(e.target.value)} title="Anchor point source" style={{width:'168px'}}>
+          <option value="manual">Manual</option>
+          <option value="prevclose">Prev Close</option>
+          <option value="open">Today Open</option>
+          <option value="pwh">Prev Week High</option>
+          <option value="pwl">Prev Week Low</option>
+          <option value="pmh">Prev Month High</option>
+          <option value="pml">Prev Month Low</option>
+          <option value="pqh">Prev Quarter High</option>
+          <option value="pql">Prev Quarter Low</option>
+          <option value="pyh">Prev Year High</option>
+          <option value="pyl">Prev Year Low</option>
+          <option value="swingh">Major Swing High</option>
+          <option value="swingl">Major Swing Low</option>
+        </select>
+      </div></Field>
       <Field label="Date"><input type="date" value={dateStr} onChange={e=>setDateStr(e.target.value)}/></Field>
       <button className="btn sm" onClick={()=>setDateStr(new Date().toISOString().slice(0,10))}>Today</button>
       <button className="btn sm" onClick={()=>doFetchLive()} disabled={fetching} title="Fetch live OHLC from Yahoo via CORS proxy">{fetching?'… fetching':'⟳ Fetch live'}</button>
