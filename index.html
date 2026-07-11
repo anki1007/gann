@@ -2035,13 +2035,22 @@ function buildToolSpec(id,ctx){
       const bScans=BAYER_RULES.map(r=>({rule:r,events:scanBayerRule(r,X.data)}));
       const bWith=bScans.filter(s=>s.events.length);
       const bTypeColor={aspect:'#f5b942',station:'#b98cff',ingress:'#48c6e8'};
+      const bSel=ctx.bayerRule||'all';
       S.markers=[];
-      bWith.forEach(s=>{let futureShown=false;s.events.forEach(e=>{
-        if(e.projected){if(futureShown)return;futureShown=true;} // only the nearest upcoming trigger per rule, to avoid piling every future hit up near the last candle
-        S.markers.push({time:e.time,position:'aboveBar',color:bTypeColor[s.rule.conditionType]||'#8aa',shape:e.projected?'arrowDown':'circle',text:(e.projected?'»':'')+s.rule.name.slice(0,2).toUpperCase()});});});
+      if(bSel==='all'){
+      bWith.forEach(s=>{s.events.filter(e=>!e.projected).forEach(e=>{
+        S.markers.push({time:e.time,position:'aboveBar',color:bTypeColor[s.rule.conditionType]||'#8aa',shape:'circle',text:s.rule.name.slice(0,2).toUpperCase()});});});
       const bTop=bWith.slice().sort((a,b2)=>b2.events.length-a.events.length)[0];
       if(bTop)S.hlines=bTop.events.filter(e=>e.close!=null).map(e=>({price:e.close,color:bTypeColor[bTop.rule.conditionType]||C_RES,title:bTop.rule.name.slice(0,12),dash:true}));
-      S.title='Bayer Rules'+(bTop?(' \u2014 horizontal marks: '+bTop.rule.name):'');
+      S.title='Bayer Rules'+(bTop?(' \u2014 past triggers, horizontal marks: '+bTop.rule.name):' \u2014 past triggers');
+      } else {
+        const sel=bWith.find(s=>s.rule.id===bSel);
+        if(sel){
+          sel.events.forEach(e=>{S.markers.push({time:e.time,position:'aboveBar',color:bTypeColor[sel.rule.conditionType]||'#8aa',shape:e.projected?'arrowDown':'circle',text:e.projected?'up':''});});
+          S.hlines=sel.events.filter(e=>e.close!=null).map(e=>({price:e.close,color:bTypeColor[sel.rule.conditionType]||C_RES,title:sel.rule.name.slice(0,14),dash:true}));
+          S.title='Bayer Rules \u2014 '+sel.rule.name;
+        }
+      }
       break;
     }
     default: return null;
@@ -2049,8 +2058,8 @@ function buildToolSpec(id,ctx){
   return S;
 }
 
-function ToolChartView({id,price,dt,ix,hist,setAnchor,anchorBasis,table}){
-  const spec=useMemo(()=>buildToolSpec(id,{price,dt,ix,hist,anchorBasis}),[id,price,dt,ix,hist,anchorBasis]);
+function ToolChartView({id,price,dt,ix,hist,setAnchor,anchorBasis,bayerRule,table}){
+  const spec=useMemo(()=>buildToolSpec(id,{price,dt,ix,hist,anchorBasis,bayerRule}),[id,price,dt,ix,hist,anchorBasis,bayerRule]);
   return(<div>
     <LWChart hist={hist} spec={spec} onAnchor={setAnchor} height={560} dec={ix.dec}/>
     <div style={{marginTop:14}}>{table}</div>
@@ -2159,8 +2168,8 @@ function scanBayerRule(rule,hist){
   out.sort((a,b)=>a.time<b.time?-1:1);
   return out;
 }
-function BayerRulesPanel({price,ix,hist}){
-  const [selected,setSelected]=useState('all');
+function BayerRulesPanel({price,ix,hist,bayerRule,setBayerRule}){
+  const selected=bayerRule;const setSelected=setBayerRule;
   const lastT=hist&&hist.length?hist[hist.length-1].t:null;
   const scans=useMemo(()=>BAYER_RULES.map(r=>({rule:r,events:scanBayerRule(r,hist)})),[hist]);
   const pastCount=scans.reduce((s,x)=>s+x.events.filter(e=>!e.projected).length,0);
@@ -2171,7 +2180,7 @@ function BayerRulesPanel({price,ix,hist}){
   const lastPastOf=(events)=>{const past=events.filter(e=>!e.projected);return past.length?past[past.length-1]:null;};
   return(<div>
     <h2 className="pg-head">Bayer Rules <span className="sub">George Bayer · Trend Determination</span></h2>
-    <p className="pg-desc">Curated, testable trading rules paraphrased from George Bayer's <i>Handbook on Trend Determination — Astrological Rules for Traders</i>, scanned across the loaded price history <b>and roughly {BAYER_FUTURE_BIZDAYS} trading days ahead</b> (no close price exists yet for those, so they're flagged UPCOMING). The chart above marks every rule's <b>past</b> trigger dates plus only its <b>single nearest upcoming</b> one (to keep the future markers from piling up right after the last candle — the full upcoming list is in the table below); the horizontal lines project the <b>most frequent</b> rule's past trigger closes forward — pick a rule below to inspect its own occurrences and see whether "similar" triggers land on the same price parameter, and when the next one falls.</p>
+    <p className="pg-desc">Curated, testable trading rules paraphrased from George Bayer's <i>Handbook on Trend Determination — Astrological Rules for Traders</i>, scanned across the loaded price history <b>and roughly {BAYER_FUTURE_BIZDAYS} trading days ahead</b> (no close price exists yet for those, so they're flagged UPCOMING). With "All rules" selected the chart above marks every rule's past triggers only — plotting every rule's upcoming hits together always collides on a compressed axis, so <b>pick a rule below</b> to mark just its own dates (past circles + upcoming arrows) and see whether "similar" triggers land on the same price parameter, and when the next one falls.</p>
     <div className="panel"><div className="row">
       <Field label="Rule"><select value={selected} onChange={e=>setSelected(e.target.value)}>
         <option value="all">All rules (markers only)</option>
@@ -2442,6 +2451,7 @@ function App(){
   const ix=INDICES[ixKey];
   const [price,setPrice]=useState(INDICES.NSEI.anchor);
   const [anchorBasis,setAnchorBasis]=useState('prevclose');
+  const [bayerRule,setBayerRule]=useState('all');
   const anchorFromHist=(basis,H)=>{
     if(!H||!H.length)return null;
     const lastT=H[H.length-1].t;
@@ -2507,9 +2517,9 @@ function App(){
 
   const live=data&&data[ixKey]&&data[ixKey].price;
   const renderTool=()=>{
-    const P={price,dt,ix,hist,setAnchor,isLive:liveHist,src:(data&&data[ixKey]&&data[ixKey].source)||null,anchorBasis};
+    const P={price,dt,ix,hist,setAnchor,isLive:liveHist,src:(data&&data[ixKey]&&data[ixKey].source)||null,anchorBasis,bayerRule,setBayerRule};
     if(tool==='chart')return<PriceChartView {...P}/>;
-    if(CHART_TOOLS.has(tool))return<ToolChartView id={tool} price={price} dt={dt} ix={ix} hist={hist} setAnchor={setAnchor} anchorBasis={anchorBasis} table={renderTable(tool,P)}/>;
+    if(CHART_TOOLS.has(tool))return<ToolChartView id={tool} price={price} dt={dt} ix={ix} hist={hist} setAnchor={setAnchor} anchorBasis={anchorBasis} bayerRule={bayerRule} table={renderTable(tool,P)}/>;
     return renderTable(tool,P);
   };
   function renderTable(tool,P){
