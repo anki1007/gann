@@ -2036,7 +2036,9 @@ function buildToolSpec(id,ctx){
       const bWith=bScans.filter(s=>s.events.length);
       const bTypeColor={aspect:'#f5b942',station:'#b98cff',ingress:'#48c6e8'};
       S.markers=[];
-      bWith.forEach(s=>{s.events.forEach(e=>{S.markers.push({time:e.time,position:'aboveBar',color:bTypeColor[s.rule.conditionType]||'#8aa',shape:e.projected?'arrowDown':'circle',text:(e.projected?'»':'')+s.rule.name.slice(0,2).toUpperCase()});});});
+      bWith.forEach(s=>{let futureShown=false;s.events.forEach(e=>{
+        if(e.projected){if(futureShown)return;futureShown=true;} // only the nearest upcoming trigger per rule, to avoid piling every future hit up near the last candle
+        S.markers.push({time:e.time,position:'aboveBar',color:bTypeColor[s.rule.conditionType]||'#8aa',shape:e.projected?'arrowDown':'circle',text:(e.projected?'»':'')+s.rule.name.slice(0,2).toUpperCase()});});});
       const bTop=bWith.slice().sort((a,b2)=>b2.events.length-a.events.length)[0];
       if(bTop)S.hlines=bTop.events.filter(e=>e.close!=null).map(e=>({price:e.close,color:bTypeColor[bTop.rule.conditionType]||C_RES,title:bTop.rule.name.slice(0,12),dash:true}));
       S.title='Bayer Rules'+(bTop?(' \u2014 horizontal marks: '+bTop.rule.name):'');
@@ -2169,7 +2171,7 @@ function BayerRulesPanel({price,ix,hist}){
   const lastPastOf=(events)=>{const past=events.filter(e=>!e.projected);return past.length?past[past.length-1]:null;};
   return(<div>
     <h2 className="pg-head">Bayer Rules <span className="sub">George Bayer · Trend Determination</span></h2>
-    <p className="pg-desc">Curated, testable trading rules paraphrased from George Bayer's <i>Handbook on Trend Determination — Astrological Rules for Traders</i>, scanned across the loaded price history <b>and roughly {BAYER_FUTURE_BIZDAYS} trading days ahead</b> (no close price exists yet for those, so they're flagged UPCOMING). The chart above marks every rule's trigger dates — including future ones; the horizontal lines project the <b>most frequent</b> rule's past trigger closes forward — pick a rule below to inspect its own occurrences and see whether "similar" triggers land on the same price parameter, and when the next one falls.</p>
+    <p className="pg-desc">Curated, testable trading rules paraphrased from George Bayer's <i>Handbook on Trend Determination — Astrological Rules for Traders</i>, scanned across the loaded price history <b>and roughly {BAYER_FUTURE_BIZDAYS} trading days ahead</b> (no close price exists yet for those, so they're flagged UPCOMING). The chart above marks every rule's <b>past</b> trigger dates plus only its <b>single nearest upcoming</b> one (to keep the future markers from piling up right after the last candle — the full upcoming list is in the table below); the horizontal lines project the <b>most frequent</b> rule's past trigger closes forward — pick a rule below to inspect its own occurrences and see whether "similar" triggers land on the same price parameter, and when the next one falls.</p>
     <div className="panel"><div className="row">
       <Field label="Rule"><select value={selected} onChange={e=>setSelected(e.target.value)}>
         <option value="all">All rules (markers only)</option>
@@ -2378,7 +2380,7 @@ function EphemerisChartPanel({dt}){const bodies=['Sun','Mercury','Venus','Mars',
   return(<div><h2 className="pg-head">Ephemeris Chart</h2>
     <p className="pg-desc">Geocentric ecliptic longitude (0–360°) of each planet over time. Where lines cross, planets are conjunct; 180° apart is opposition — a visual map of the planetary cycles.</p>
     <div className="panel" style={{padding:'8px 12px'}}><div className="row" style={{marginBottom:6}}><Field label="Window (days)"><Num value={days} onChange={setDays} w={90}/></Field><div className="mut">Centred on {fmtDate(dt)}</div></div></div>
-    <div className="panel" style={{padding:6}}><svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{maxWidth:W+'px'}}>
+    <div className="panel" style={{padding:6}}><svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{display:'block'}}>
       {[0,90,180,270,360].map(g=><g key={g}><line x1={L} y1={yOf(g)} x2={W-R} y2={yOf(g)} stroke="var(--gridline)"/><text x={4} y={yOf(g)+3} fill="var(--dim)" fontSize="9">{g}°</text></g>)}
       {bodies.map(b=>{const segs=[];let cur=[];for(let i=0;i<data.length;i++){if(i>0&&Math.abs(data[i][b]-data[i-1][b])>180){segs.push(cur);cur=[];}cur.push(xOf(i)+','+yOf(data[i][b]));}segs.push(cur);
         return<g key={b}>{segs.map((s,si)=><polyline key={si} points={s.join(' ')} fill="none" stroke={PCOLOR[b]} strokeWidth="1.5"/>)}<text x={W-R+4} y={yOf(data[data.length-1][b])+3} fill={PCOLOR[b]} fontSize="10">{GLYPH[b]} {b}</text></g>;})}
