@@ -2022,9 +2022,9 @@ function buildToolSpec(id,ctx){
     case 'moon': S.markers=mkMoon(dt,X.data);S.title='Moon Phases';break;
     case 'aspects': S.markers=aspectMarkers(hist);S.title='Planetary Aspects (exact hard-aspect dates)';break;
     case 'retro': S.markers=retroMarkers(hist);S.title='Retrograde Stations';break;
-    case 'signchg': {var Ra=_astroRange(dt,hist,1);S.markers=signChanges(Ra.st,Ra.dys,['Sun','Mercury','Venus','Mars','Jupiter','Saturn']).map(function(r){return{time:r.date.toISOString().slice(0,10),position:'belowBar',color:PCOLOR[r.body]||'#888',shape:'circle',text:(GLYPH[r.body]||'')+r.signGlyph};});S.title='Planetary Sign Changes';break;}
+    case 'signchg': {var Ra=_astroRange(dt,hist,200);S.markers=signChanges(Ra.st,Ra.dys,['Sun','Mercury','Venus','Mars','Jupiter','Saturn']).map(function(r){return{time:r.date.toISOString().slice(0,10),position:'belowBar',color:PCOLOR[r.body]||'#888',shape:'circle',text:(GLYPH[r.body]||'')+r.signGlyph};});S.title='Planetary Sign Changes';break;}
     case 'timebydeg': S.markers=timeByDegrees(dt,'Sun',[30,45,60,90,120,144,180,270,360],520).map(function(r){return{time:r.date.toISOString().slice(0,10),position:'aboveBar',color:'#f5b942',shape:'arrowDown',text:r.deg+'°'};});S.title='Time By Planetary Degrees (Sun)';break;
-    case 'apsides': {var Rb=_astroRange(dt,hist,1);S.markers=moonApsides(Rb.st,Rb.dys).map(function(r){return{time:r.date.toISOString().slice(0,10),position:'belowBar',color:r.type==='Perigee'?'#f06a6a':'#48c6e8',shape:'circle',text:r.type==='Perigee'?'Pg':'Ap'};});S.title='Moon Apogee / Perigee';break;}
+    case 'apsides': {var Rb=_astroRange(dt,hist,200);S.markers=moonApsides(Rb.st,Rb.dys).map(function(r){return{time:r.date.toISOString().slice(0,10),position:'belowBar',color:r.type==='Perigee'?'#f06a6a':'#48c6e8',shape:'circle',text:r.type==='Perigee'?'Pg':'Ap'};});S.title='Moon Apogee / Perigee';break;}
     case 'eclipse': {var Rc=_astroRange(dt,hist,200);S.markers=eclipses(Rc.st,Rc.dys).map(function(r){return{time:r.date.toISOString().slice(0,10),position:'aboveBar',color:r.type==='Solar Eclipse'?'#f5b942':'#b98cff',shape:'circle',text:r.type==='Solar Eclipse'?'SoE':'LuE'};});S.title='Eclipses';break;}
     case 'gannbox': {const p1=Math.round(price*0.92),p2=Math.round(price*1.08);S.hlines=[0,0.25,0.333,0.5,0.667,0.75,1].map(f=>({price:p1+(p2-p1)*f,color:f===0.5?C_RES:C_FAN,title:(f*100).toFixed(0)+'%'}));S.title='Gann Box';break;}
     case 'sq90': {var q90=square90Price(price);S.hlines=q90.map(function(p){return {price:p.up,color:p.col,title:p.deg+'\u00b0R'};}).concat(q90.map(function(p){return {price:p.dn,color:p.col,title:p.deg+'\u00b0S',dash:true};})).filter(function(l){return b(l.price);});S.markers=square90Time(dt,540).map(function(t){return {time:t.date.toISOString().slice(0,10),position:'belowBar',color:t.col,shape:'arrowUp',text:t.angle+'\u00b0'};});S.title='Square of 90 (quarters + time)';break;}
@@ -2033,9 +2033,9 @@ function buildToolSpec(id,ctx){
       const bWith=bScans.filter(s=>s.events.length);
       const bTypeColor={aspect:'#f5b942',station:'#b98cff',ingress:'#48c6e8'};
       S.markers=[];
-      bWith.forEach(s=>{s.events.forEach(e=>{S.markers.push({time:e.time,position:'aboveBar',color:bTypeColor[s.rule.conditionType]||'#8aa',shape:'circle',text:s.rule.name.slice(0,2).toUpperCase()});});});
+      bWith.forEach(s=>{s.events.forEach(e=>{S.markers.push({time:e.time,position:'aboveBar',color:bTypeColor[s.rule.conditionType]||'#8aa',shape:e.projected?'arrowDown':'circle',text:(e.projected?'»':'')+s.rule.name.slice(0,2).toUpperCase()});});});
       const bTop=bWith.slice().sort((a,b2)=>b2.events.length-a.events.length)[0];
-      if(bTop)S.hlines=bTop.events.map(e=>({price:e.close,color:bTypeColor[bTop.rule.conditionType]||C_RES,title:bTop.rule.name.slice(0,12),dash:true}));
+      if(bTop)S.hlines=bTop.events.filter(e=>e.close!=null).map(e=>({price:e.close,color:bTypeColor[bTop.rule.conditionType]||C_RES,title:bTop.rule.name.slice(0,12),dash:true}));
       S.title='Bayer Rules'+(bTop?(' \u2014 horizontal marks: '+bTop.rule.name):'');
       break;
     }
@@ -2047,7 +2047,7 @@ function buildToolSpec(id,ctx){
 function ToolChartView({id,price,dt,ix,hist,setAnchor,anchorBasis,table}){
   const spec=useMemo(()=>buildToolSpec(id,{price,dt,ix,hist,anchorBasis}),[id,price,dt,ix,hist,anchorBasis]);
   return(<div>
-    <LWChart hist={hist} spec={spec} onAnchor={setAnchor} height={400} dec={ix.dec}/>
+    <LWChart hist={hist} spec={spec} onAnchor={setAnchor} height={560} dec={ix.dec}/>
     <div style={{marginTop:14}}>{table}</div>
   </div>);
 }
@@ -2090,8 +2090,11 @@ const BAYER_RULES=[
     summary:'Bayer includes the dates Mars turns retrograde or direct among the planetary station points he says mark good changes of trend in cotton prices.',
     conditionType:'station',conditionParams:{body:'Mars'}}
 ];
+/* How far beyond the last loaded bar to project upcoming Bayer rule triggers */
+const BAYER_FUTURE_BIZDAYS=240;
 function scanAspectRule(hist,bodyA,bodyB,aspectName){
-  const times=tradingTimes(hist);if(times.length<2)return[];
+  const lastT=hist&&hist.length?hist[hist.length-1].t:null;if(!lastT)return[];
+  const times=tradingTimes(hist).concat(bizRange(lastT,BAYER_FUTURE_BIZDAYS));
   const aspDef=ASPECTS.find(a=>a.name===aspectName);if(!aspDef)return[];
   const cand=[];
   times.forEach(t=>{
@@ -2107,7 +2110,8 @@ function scanAspectRule(hist,bodyA,bodyB,aspectName){
   return out;
 }
 function scanStationRule(hist,body){
-  const times=tradingTimes(hist);if(times.length<2)return[];
+  const lastT=hist&&hist.length?hist[hist.length-1].t:null;if(!lastT)return[];
+  const times=tradingTimes(hist).concat(bizRange(lastT,BAYER_FUTURE_BIZDAYS));
   let prevSpeed=null;const out=[];
   times.forEach(t=>{
     const d=dayNumberFromDate(new Date(t+'T12:00:00Z'));
@@ -2120,10 +2124,19 @@ function scanStationRule(hist,body){
 function scanIngressRule(hist,body){
   if(!hist||!hist.length)return[];
   const start=new Date(hist[0].t+'T12:00:00Z');
-  const days=Math.round((Date.parse(hist[hist.length-1].t)-Date.parse(hist[0].t))/86400000)+1;
+  const lastT=hist[hist.length-1].t;
+  const days=Math.round((Date.parse(lastT)-Date.parse(hist[0].t))/86400000)+1+Math.round(BAYER_FUTURE_BIZDAYS*7/5);
   const times=tradingTimes(hist);
-  return signChanges(start,days,[body]).map(r=>snapToTimes(r.date.toISOString().slice(0,10),times));
+  return signChanges(start,days,[body]).map(r=>{
+    const iso=r.date.toISOString().slice(0,10);
+    if(iso<=lastT)return snapToTimes(iso,times);
+    const d=new Date(iso+'T00:00:00Z');
+    while(d.getUTCDay()===0||d.getUTCDay()===6)d.setUTCDate(d.getUTCDate()+1);
+    return d.toISOString().slice(0,10);
+  });
 }
+/* Scans a rule across the loaded history AND ~BAYER_FUTURE_BIZDAYS ahead. Past triggers carry
+   the session close; future triggers have no price yet and are flagged projected:true. */
 function scanBayerRule(rule,hist){
   if(!hist||!hist.length)return[];
   const p=rule.conditionParams;let dates=[];
@@ -2131,47 +2144,63 @@ function scanBayerRule(rule,hist){
   else if(rule.conditionType==='station')dates=scanStationRule(hist,p.body);
   else if(rule.conditionType==='ingress')dates=scanIngressRule(hist,p.body);
   const byT={};hist.forEach(b=>{byT[b.t]=b;});
+  const lastT=hist[hist.length-1].t;
   const seen={};const out=[];
-  dates.forEach(t=>{if(seen[t]||!byT[t])return;seen[t]=true;out.push({time:t,close:byT[t].c});});
+  dates.forEach(t=>{
+    if(seen[t])return;seen[t]=true;
+    if(byT[t])out.push({time:t,close:byT[t].c,projected:false});
+    else if(t>lastT)out.push({time:t,close:null,projected:true});
+  });
   out.sort((a,b)=>a.time<b.time?-1:1);
   return out;
 }
 function BayerRulesPanel({price,ix,hist}){
   const [selected,setSelected]=useState('all');
+  const lastT=hist&&hist.length?hist[hist.length-1].t:null;
   const scans=useMemo(()=>BAYER_RULES.map(r=>({rule:r,events:scanBayerRule(r,hist)})),[hist]);
-  const totalEvents=scans.reduce((s,x)=>s+x.events.length,0);
+  const pastCount=scans.reduce((s,x)=>s+x.events.filter(e=>!e.projected).length,0);
+  const futureCount=scans.reduce((s,x)=>s+x.events.filter(e=>e.projected).length,0);
   const ranked=useMemo(()=>scans.slice().sort((a,b)=>b.events.length-a.events.length),[scans]);
   const active=selected==='all'?null:scans.find(s=>s.rule.id===selected);
+  const nextOf=(events)=>lastT?events.find(e=>e.time>lastT):null;
+  const lastPastOf=(events)=>{const past=events.filter(e=>!e.projected);return past.length?past[past.length-1]:null;};
   return(<div>
     <h2 className="pg-head">Bayer Rules <span className="sub">George Bayer · Trend Determination</span></h2>
-    <p className="pg-desc">Curated, testable trading rules paraphrased from George Bayer's <i>Handbook on Trend Determination — Astrological Rules for Traders</i>, scanned against the currently loaded price history. The chart above marks every rule's trigger dates; the horizontal lines project the <b>most frequent</b> rule's trigger closes forward — pick a rule below to inspect its own occurrences and see whether "similar" triggers land on the same price parameter.</p>
+    <p className="pg-desc">Curated, testable trading rules paraphrased from George Bayer's <i>Handbook on Trend Determination — Astrological Rules for Traders</i>, scanned across the loaded price history <b>and roughly {BAYER_FUTURE_BIZDAYS} trading days ahead</b> (no close price exists yet for those, so they're flagged UPCOMING). The chart above marks every rule's trigger dates — including future ones; the horizontal lines project the <b>most frequent</b> rule's past trigger closes forward — pick a rule below to inspect its own occurrences and see whether "similar" triggers land on the same price parameter, and when the next one falls.</p>
     <div className="panel"><div className="row">
       <Field label="Rule"><select value={selected} onChange={e=>setSelected(e.target.value)}>
         <option value="all">All rules (markers only)</option>
         {BAYER_RULES.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
       </select></Field>
-      <div className="mut">{totalEvents} total triggers across {BAYER_RULES.length} rules in the loaded range.</div>
+      <div className="mut">{pastCount} past triggers, {futureCount} upcoming, across {BAYER_RULES.length} rules.</div>
     </div></div>
-    <div className="panel"><h3>Rule Occurrence Summary <span className="mut" style={{fontWeight:400,fontSize:11}}>— same parameter, grouped</span></h3><div className="scroll"><table><thead><tr><th className="l">Rule</th><th className="l">Type</th><th>Page</th><th>Occurrences</th><th className="l">Most recent</th></tr></thead><tbody>
-      {ranked.map((s,i)=>
-        <tr key={i} style={{cursor:'pointer'}} onClick={()=>setSelected(s.rule.id)}>
+    <div className="panel"><h3>Rule Occurrence Summary <span className="mut" style={{fontWeight:400,fontSize:11}}>— same parameter, grouped</span></h3><div className="scroll"><table><thead><tr><th className="l">Rule</th><th className="l">Type</th><th>Page</th><th>Occurrences</th><th className="l">Next</th><th className="l">Most recent</th></tr></thead><tbody>
+      {ranked.map((s,i)=>{
+        const next=nextOf(s.events),last=lastPastOf(s.events);
+        return <tr key={i} style={{cursor:'pointer'}} onClick={()=>setSelected(s.rule.id)}>
           <td className="l" style={{color:selected===s.rule.id?'var(--grn)':'inherit'}}>{s.rule.name}</td>
           <td className="l mut">{s.rule.conditionType}</td>
           <td className="mut">{s.rule.page||'–'}</td>
           <td className={s.events.length>1?'amb':'mut'}>{s.events.length}</td>
-          <td className="l cyn">{s.events.length?s.events[s.events.length-1].time:'—'}</td>
-        </tr>)}
+          <td className="l">{next?<span className="tag card">{next.time}</span>:<span className="mut">—</span>}</td>
+          <td className="l cyn">{last?last.time:'—'}</td>
+        </tr>;})}
     </tbody></table></div></div>
     {active?
     <div className="panel"><h3>{active.rule.name} <span className="sub" style={{fontSize:11}}>· p.{active.rule.page}</span></h3>
       <p className="mut" style={{fontSize:12,margin:'0 0 10px'}}>{active.rule.summary}</p>
       {active.events.length?
-      <table><thead><tr><th className="l">Date</th><th>Close</th><th>Δ% vs anchor</th></tr></thead><tbody>
-        {active.events.map((e,i)=><tr key={i}><td className="l cyn">{e.time}</td><td>{fmtN(e.close,ix.dec)}</td><td className={e.close>=price?'amb':'pos'}>{((e.close-price)/price*100).toFixed(2)}%</td></tr>)}
+      <table><thead><tr><th className="l">Date</th><th>Close</th><th>Δ% vs anchor</th><th className="l">Status</th></tr></thead><tbody>
+        {active.events.map((e,i)=><tr key={i}>
+          <td className="l cyn">{e.time}</td>
+          <td>{e.close!=null?fmtN(e.close,ix.dec):'—'}</td>
+          <td className={e.close==null?'mut':(e.close>=price?'amb':'pos')}>{e.close!=null?((e.close-price)/price*100).toFixed(2)+'%':'—'}</td>
+          <td className="l">{e.projected?<span className="tag card">UPCOMING</span>:<span className="mut">past</span>}</td>
+        </tr>)}
       </tbody></table>
-      :<div className="mut">No occurrences of this rule in the currently loaded price history.</div>}
+      :<div className="mut">No occurrences of this rule in the loaded range or the projected window ahead.</div>}
     </div>
-    :<div className="note">Click a rule row (or the dropdown) to see its individual trigger dates.</div>}
+    :<div className="note">Click a rule row (or the dropdown) to see its individual trigger dates, including upcoming ones.</div>}
   </div>);
 }
 
@@ -2210,7 +2239,7 @@ function PriceChartView({price,dt,ix,hist,setAnchor,src,isLive,anchorBasis}){
     <div style={{marginTop:8}}><span className="mut" style={{marginRight:10,fontSize:11}}>OVERLAYS:</span>
       <Chk k="pivots" label="Pivot Points" c="#ff9d3b"/><Chk k="sq9" label="Sq9 Levels" c="var(--amb)"/><Chk k="fan" label="Gann Fan" c="var(--cyn)"/><Chk k="divs" label="Range Divisions" c="var(--mag)"/><Chk k="planets" label="Planetary Lines" c="var(--grn)"/><Chk k="cycles" label="Time Cycles" c="var(--vio)"/><Chk k="moon" label="Moon Phases" c="#cdd9e5"/><Chk k="aspects" label="Aspects" c="#f06a6a"/><Chk k="retro" label="Retrograde" c="#b98cff"/>
     </div></div>
-    <LWChart hist={hist} spec={spec} onAnchor={setAnchor} onReady={(api)=>{apiRef.current=api;}} height={470} dec={ix.dec}/>
+    <LWChart hist={hist} spec={spec} onAnchor={setAnchor} onReady={(api)=>{apiRef.current=api;}} height={680} dec={ix.dec}/>
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
       <div className="panel"><h3>Anchor (pivot)</h3><table><tbody><tr><td className="l mut">Price</td><td className="pricebox">{fmt(price)}</td></tr><tr><td className="l mut">Date</td><td className="cyn">{fmtDate(dt)}</td></tr><tr><td className="l mut">√Price</td><td>{Math.sqrt(price).toFixed(3)}</td></tr></tbody></table></div>
       <div className="panel"><h3>Sq9 Resistance</h3><table><tbody>{sr.resistance.map((v,i)=><tr key={i}><td className="l"><span className="tag res">R{i+1}</span></td><td>{fmt(v)}</td></tr>)}</tbody></table></div>
@@ -2307,11 +2336,13 @@ function SynodicPanel({dt}){const rows=useMemo(()=>synodicCycles(dt),[dt]);
       {rows.map((r,i)=><tr key={i}><td className="l">{r.glyphA} {r.pair}</td><td>{r.sep.toFixed(1)}°</td>
       <td className="amb">{isFinite(r.synodic)?Math.round(r.synodic)+' days ('+(r.synodic/365.25).toFixed(2)+' yr)':'—'}</td></tr>)}</tbody></table></div></div>);}
 
-function SignChangesPanel({dt,hist}){const rows=useMemo(()=>{const R=_astroRange(dt,hist,1);return signChanges(R.st,R.dys,['Sun','Mercury','Venus','Mars','Jupiter','Saturn','Uranus','Neptune']);},[dt,hist]);
+function SignChangesPanel({dt,hist}){const rows=useMemo(()=>{const R=_astroRange(dt,hist,200);return signChanges(R.st,R.dys,['Sun','Mercury','Venus','Mars','Jupiter','Saturn','Uranus','Neptune']);},[dt,hist]);
+  const lastT=hist&&hist.length?hist[hist.length-1].t:null;
   return(<div><h2 className="pg-head">Planetary Sign Changes</h2>
-    <p className="pg-desc">Dates each planet ingresses into a new zodiac sign across the loaded price range (markers on the chart above). Sign changes of slow planets often align with trend shifts.</p>
-    <div className="panel"><div className="scroll"><table><thead><tr><th className="l">Date</th><th className="l">Body</th><th className="l">Enters</th></tr></thead><tbody>
-      {rows.map((r,i)=><tr key={i}><td className="l cyn">{fmtDate(r.date)}</td><td className="l"><span style={{color:PCOLOR[r.body]}}>{r.glyph}</span> {r.body}</td><td className="l">{r.signGlyph} {r.sign}</td></tr>)}</tbody></table></div><div className="note">{rows.length} ingresses across the loaded range.</div></div></div>);}
+    <p className="pg-desc">Dates each planet ingresses into a new zodiac sign across the loaded price range <b>and roughly 200 days ahead</b> (markers on the chart above). Sign changes of slow planets often align with trend shifts.</p>
+    <div className="panel"><div className="scroll"><table><thead><tr><th className="l">Date</th><th className="l">Body</th><th className="l">Enters</th><th className="l"></th></tr></thead><tbody>
+      {rows.map((r,i)=>{const iso=r.date.toISOString().slice(0,10);const upcoming=lastT&&iso>lastT;
+      return<tr key={i}><td className="l cyn">{fmtDate(r.date)}</td><td className="l"><span style={{color:PCOLOR[r.body]}}>{r.glyph}</span> {r.body}</td><td className="l">{r.signGlyph} {r.sign}</td><td className="l">{upcoming?<span className="tag card">UPCOMING</span>:null}</td></tr>;})}</tbody></table></div><div className="note">{rows.length} ingresses across the loaded range and projected window ahead.</div></div></div>);}
 
 function TimeByDegPanel({dt}){const [body,setBody]=useState('Sun');const targets=[30,45,60,72,90,120,135,144,180,216,240,270,288,315,360];
   const rows=useMemo(()=>timeByDegrees(dt,body,targets,520),[dt,body]);
@@ -2321,17 +2352,21 @@ function TimeByDegPanel({dt}){const [body,setBody]=useState('Sun');const targets
     <div className="panel"><div className="scroll"><table><thead><tr><th>Degrees</th><th className="l">Date</th><th>Calendar days</th></tr></thead><tbody>
       {rows.map((r,i)=><tr key={i}><td className="amb">{r.deg}°</td><td className="l cyn">{fmtDate(r.date)}</td><td>{Math.round((r.date-dt)/86400000)}</td></tr>)}</tbody></table></div></div></div>);}
 
-function ApsidesPanel({dt,hist}){const rows=useMemo(()=>{const R=_astroRange(dt,hist,1);return moonApsides(R.st,R.dys);},[dt,hist]);
+function ApsidesPanel({dt,hist}){const rows=useMemo(()=>{const R=_astroRange(dt,hist,200);return moonApsides(R.st,R.dys);},[dt,hist]);
+  const lastT=hist&&hist.length?hist[hist.length-1].t:null;
   return(<div><h2 className="pg-head">Apogee and Perigee</h2>
-    <p className="pg-desc">The Moon's farthest (apogee) and nearest (perigee) points to Earth across the loaded range, plotted on the chart above. Lunar distance extremes are watched as short-cycle turning points.</p>
-    <div className="panel"><div className="scroll"><table><thead><tr><th className="l">Date</th><th className="l">Type</th><th>Distance (Earth radii)</th></tr></thead><tbody>
-      {rows.map((r,i)=><tr key={i}><td className="l cyn">{fmtDate(r.date)}</td><td className="l">{r.type==='Perigee'?<span className="tag res">Perigee</span>:<span className="tag sup">Apogee</span>}</td><td>{r.dist.toFixed(2)}</td></tr>)}</tbody></table></div></div></div>);}
+    <p className="pg-desc">The Moon's farthest (apogee) and nearest (perigee) points to Earth across the loaded range <b>and roughly 200 days ahead</b>, plotted on the chart above. Lunar distance extremes are watched as short-cycle turning points.</p>
+    <div className="panel"><div className="scroll"><table><thead><tr><th className="l">Date</th><th className="l">Type</th><th>Distance (Earth radii)</th><th className="l"></th></tr></thead><tbody>
+      {rows.map((r,i)=>{const iso=r.date.toISOString().slice(0,10);const upcoming=lastT&&iso>lastT;
+      return<tr key={i}><td className="l cyn">{fmtDate(r.date)}</td><td className="l">{r.type==='Perigee'?<span className="tag res">Perigee</span>:<span className="tag sup">Apogee</span>}</td><td>{r.dist.toFixed(2)}</td><td className="l">{upcoming?<span className="tag card">UPCOMING</span>:null}</td></tr>;})}</tbody></table></div></div></div>);}
 
 function EclipsePanel({dt,hist}){const rows=useMemo(()=>{const R=_astroRange(dt,hist,200);return eclipses(R.st,R.dys);},[dt,hist]);
+  const lastT=hist&&hist.length?hist[hist.length-1].t:null;
   return(<div><h2 className="pg-head">Eclipse</h2>
-    <p className="pg-desc">Approximate solar (New Moon near node) and lunar (Full Moon near node) eclipse dates around the loaded range, plotted on the chart above. Eclipses are major Gann/astro timing events.</p>
-    <div className="panel"><table><thead><tr><th className="l">Date</th><th className="l">Type</th><th>Node separation</th></tr></thead><tbody>
-      {rows.length?rows.map((r,i)=><tr key={i}><td className="l cyn">{fmtDate(r.date)}</td><td className="l"><span style={{color:r.type==='Solar Eclipse'?'var(--amb)':'var(--vio)'}}>{r.type==='Solar Eclipse'?'☉ Solar':'☽ Lunar'}</span></td><td className="mut">{r.sep.toFixed(1)}°</td></tr>):<tr><td colSpan="3" className="mut">No eclipses detected in this range.</td></tr>}</tbody></table><div className="note">Approximate — based on luni-solar node geometry, not full Besselian elements.</div></div></div>);}
+    <p className="pg-desc">Approximate solar (New Moon near node) and lunar (Full Moon near node) eclipse dates around the loaded range <b>and roughly 200 days ahead</b>, plotted on the chart above. Eclipses are major Gann/astro timing events.</p>
+    <div className="panel"><table><thead><tr><th className="l">Date</th><th className="l">Type</th><th>Node separation</th><th className="l"></th></tr></thead><tbody>
+      {rows.length?rows.map((r,i)=>{const iso=r.date.toISOString().slice(0,10);const upcoming=lastT&&iso>lastT;
+      return<tr key={i}><td className="l cyn">{fmtDate(r.date)}</td><td className="l"><span style={{color:r.type==='Solar Eclipse'?'var(--amb)':'var(--vio)'}}>{r.type==='Solar Eclipse'?'☉ Solar':'☽ Lunar'}</span></td><td className="mut">{r.sep.toFixed(1)}°</td><td className="l">{upcoming?<span className="tag card">UPCOMING</span>:null}</td></tr>;}):<tr><td colSpan="4" className="mut">No eclipses detected in this range.</td></tr>}</tbody></table><div className="note">Approximate — based on luni-solar node geometry, not full Besselian elements.</div></div></div>);}
 
 function EphemerisChartPanel({dt}){const bodies=['Sun','Mercury','Venus','Mars','Jupiter','Saturn'];const [days,setDays]=useState(365);
   const data=useMemo(()=>{const arr=[];const start=new Date(dt.getTime()-days*0.5*86400000);const step=Math.max(1,Math.round(days/180));
