@@ -400,7 +400,10 @@ async function fetchYahoo(symbol){
       const q=(res.indicators&&res.indicators.quote&&res.indicators.quote[0])||{};
       const O=q.open||[],H=q.high||[],L=q.low||[],C=q.close||[];
       const hist=[];
-      for(let i=0;i<ts.length;i++){const o=O[i],h=H[i],l=L[i],c=C[i];
+      for(let i=0;i<ts.length;i++){const o=O[i],h=H[i],l=L[i];let c=C[i];
+        /* some CORS proxies relay today's still-updating bar with a null close even though
+           O/H/L are already populated — patch it from the live quote instead of dropping the day */
+        if(c==null&&i===ts.length-1&&o!=null&&meta.regularMarketPrice!=null)c=meta.regularMarketPrice;
         if(o==null||h==null||l==null||c==null) continue;
         hist.push({t:new Date(ts[i]*1000).toISOString().slice(0,10),o:+(+o).toFixed(2),h:+(+h).toFixed(2),l:+(+l).toFixed(2),c:+(+c).toFixed(2)});}
       if(!hist.length) throw new Error('no candles');
