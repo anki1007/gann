@@ -450,18 +450,34 @@ function periodKey(dateStr,period){
   if(period==='year')return String(d.getUTCFullYear());
   return dateStr;
 }
-/* High/Low of the most recent COMPLETE prior week/month/quarter/year in a history array */
+/* Next weekday (Mon-Fri) after a 'YYYY-MM-DD' date, skipping Sat/Sun — used to tell whether a
+   bar sits on the last possible trading day of its week/month/quarter/year. */
+function nextWeekday(dateStr){
+  const d=new Date(dateStr+'T00:00:00Z');
+  do{d.setUTCDate(d.getUTCDate()+1);}while(d.getUTCDay()===0||d.getUTCDay()===6);
+  return d.toISOString().slice(0,10);
+}
+/* True if no further trading day can fall in the same period as dateStr — i.e. this bar is
+   already the period's close (e.g. a Friday bar completes its trading week even though the ISO
+   calendar week still runs through Sunday). */
+function isPeriodComplete(dateStr,period){
+  return periodKey(dateStr,period)!==periodKey(nextWeekday(dateStr),period);
+}
+/* High/Low of the most recent COMPLETE week/month/quarter/year in a history array. If the last
+   loaded bar is itself the final trading day of its period (e.g. a Friday close for 'week'),
+   that period counts as complete rather than being treated as still in progress. */
 function prevPeriodHighLow(hist,period){
   if(!hist||!hist.length)return null;
   const groups={},order=[];
   hist.forEach(bar=>{const k=periodKey(bar.t,period);if(!groups[k]){groups[k]=[];order.push(k);}groups[k].push(bar);});
-  const lastKey=periodKey(hist[hist.length-1].t,period);
-  const idx=order.lastIndexOf(lastKey);
-  if(idx<=0)return null;
-  const bars=groups[order[idx-1]];
+  const lastT=hist[hist.length-1].t;
+  let idx=order.lastIndexOf(periodKey(lastT,period));
+  if(!isPeriodComplete(lastT,period))idx-=1;
+  if(idx<0)return null;
+  const bars=groups[order[idx]];
   let hiBar=bars[0],loBar=bars[0];
   bars.forEach(b=>{if(b.h>hiBar.h)hiBar=b;if(b.l<loBar.l)loBar=b;});
-  return {high:hiBar.h,low:loBar.l,highDate:hiBar.t,lowDate:loBar.t,periodKey:order[idx-1]};
+  return {high:hiBar.h,low:loBar.l,highDate:hiBar.t,lowDate:loBar.t,periodKey:order[idx]};
 }
 /* Fractal swing points: a bar whose high/low is the most extreme within `window` bars either side */
 function findSwingPoints(hist,window){
